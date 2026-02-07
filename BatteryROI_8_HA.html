@@ -1288,18 +1288,23 @@ function BatteryROI() {
                 const avgSolar = dr.reduce((s, d) => s + d.total_solar_kwh, 0) / dr.length;
                 const bCap = (HISTORICAL_ROI_DATA.battery_spec || {}).usable_kwh || 27.36;
                 const preds = wxData.forecast.slice(0, 7).map(day => {
-                  const mult = BOM_CONDITION_TO_SOLAR[day.condition] || 0.5;
-                  const predKwh = avgSolar * mult;
+                  const weatherMult = BOM_CONDITION_TO_SOLAR[day.condition] || 0.5;
+                  const forecastDate = new Date(day.date + 'T00:00:00');
+                  const seasonalMult = SEA.feedIn[forecastDate.getMonth()] || 1.0;
+                  const combinedMult = weatherMult * seasonalMult;
+                  const predKwh = avgSolar * combinedMult;
                   const batteryPred = predictBatteryPerformance(predKwh, bCap);
                   return {
                     date: day.date,
-                    dayName: new Date(day.date + 'T00:00:00').toLocaleDateString('en-AU', { weekday: 'short' }),
+                    dayName: forecastDate.toLocaleDateString('en-AU', { weekday: 'short' }),
                     condition: day.condition || 'Unknown',
                     conditionIcon: getConditionIcon(day.condition),
                     tempMax: day.temperature,
                     tempMin: day.templow,
                     rainChance: day.precipitation_probability || 0,
-                    solarMultiplier: mult,
+                    solarMultiplier: combinedMult,
+                    weatherMultiplier: weatherMult,
+                    seasonalMultiplier: seasonalMult,
                     ...batteryPred
                   };
                 });
@@ -3307,17 +3312,20 @@ function BatteryROI() {
 
                     // Process HA forecast for each day
                     const predictions = haForecast.forecast.slice(0, 7).map(day => {
-                      const solarMultiplier = BOM_CONDITION_TO_SOLAR[day.condition] || 0.5;
+                      const weatherMult = BOM_CONDITION_TO_SOLAR[day.condition] || 0.5;
+                      const forecastDate = new Date((day.date || day.datetime?.split('T')[0]) + 'T00:00:00');
+                      const seasonalMult = SEA.feedIn[forecastDate.getMonth()] || 1.0;
+                      const solarMultiplier = weatherMult * seasonalMult;
                       const predictedSolarKwh = avgSolar * solarMultiplier;
                       const batteryPred = predictBatteryPerformance(predictedSolarKwh, _batterySpec.usable_kwh);
 
                       // Estimate cloud cover from condition for display
-                      const cloudCover = day.precipitation_probability > 70 ? 90 : day.precipitation_probability > 40 ? 70 : Math.round((1 - solarMultiplier) * 100);
+                      const cloudCover = day.precipitation_probability > 70 ? 90 : day.precipitation_probability > 40 ? 70 : Math.round((1 - weatherMult) * 100);
 
                       return {
                         date: day.date || day.datetime?.split('T')[0],
-                        dateObj: new Date(day.datetime || day.date),
-                        dayName: new Date(day.datetime || day.date).toLocaleDateString('en-AU', { weekday: 'short' }),
+                        dateObj: forecastDate,
+                        dayName: forecastDate.toLocaleDateString('en-AU', { weekday: 'short' }),
                         condition: day.condition || 'Unknown',
                         conditionIcon: getConditionIcon(day.condition),
                         tempMax: day.temperature,
@@ -3326,6 +3334,9 @@ function BatteryROI() {
                         uvIndex: null,
                         rainChance: day.precipitation_probability || 0,
                         windSpeed: day.wind_speed || 0,
+                        solarMultiplier: solarMultiplier,
+                        weatherMultiplier: weatherMult,
+                        seasonalMultiplier: seasonalMult,
                         ...batteryPred
                       };
                     });
@@ -3549,8 +3560,11 @@ function BatteryROI() {
                                 </div>
                               </div>
                               <div style={{ fontSize: "10px", color: "#64748b" }}>
-                                ☁️ {day.cloudCover}% cloud • 🌧️ {day.rainChance}% rain • 💨 {day.windSpeed || ''} km/h
+                                ☁️ {day.cloudCover}% cloud • 🌧️ {day.rainChance}% rain{day.windSpeed ? ` • 💨 ${day.windSpeed} km/h` : ''}
                               </div>
+                              {day.weatherMultiplier && <div style={{ fontSize: "9px", color: "#475569" }}>
+                                Weather: {(day.weatherMultiplier * 100).toFixed(0)}% × Season: {(day.seasonalMultiplier * 100).toFixed(0)}%
+                              </div>}
                             </div>
 
                             {/* Battery Predictions */}
@@ -3815,6 +3829,8 @@ function BatteryROI() {
 
             const condition = weatherToday.current?.condition || todayPred.condition || 'unknown';
             const multiplier = todayPred.solarMultiplier || BOM_CONDITION_TO_SOLAR[condition] || 0.5;
+            const weatherMult = todayPred.weatherMultiplier || BOM_CONDITION_TO_SOLAR[condition] || 0.5;
+            const seasonalMult = todayPred.seasonalMultiplier || (SEA.feedIn[new Date().getMonth()] || 1.0);
             const predictedFullDay = todayPred.predictedSolarKwh || 0;
             const predictedFillPct = todayPred.fillPct || 0;
             const predictedPerformance = todayPred.performance || 'Unknown';
@@ -3854,10 +3870,10 @@ function BatteryROI() {
 
             let modelNote = "";
             if (!isBefore6am && expectedFraction > 0.3) {
-              if (accuracy > 130) modelNote = "Model underestimating — consider increasing BOM_CONDITION_TO_SOLAR['" + condition + "'] from " + multiplier.toFixed(2);
-              else if (accuracy > 110) modelNote = "Model slightly conservative for '" + condition + "' conditions.";
-              else if (accuracy >= 85) modelNote = "Model well calibrated for '" + condition + "' — multiplier " + (multiplier * 100).toFixed(0) + "% is accurate.";
-              else if (accuracy >= 60) modelNote = "Model overestimating — consider reducing BOM_CONDITION_TO_SOLAR['" + condition + "'] from " + multiplier.toFixed(2);
+              if (accuracy > 130) modelNote = "Model underestimating — consider increasing BOM_CONDITION_TO_SOLAR['" + condition + "'] from " + weatherMult.toFixed(2) + " (seasonal adj: ×" + seasonalMult.toFixed(2) + ")";
+              else if (accuracy > 110) modelNote = "Model slightly conservative for '" + condition + "' conditions (season ×" + seasonalMult.toFixed(2) + ").";
+              else if (accuracy >= 85) modelNote = "Model well calibrated for '" + condition + "' — weather " + (weatherMult * 100).toFixed(0) + "% × season " + (seasonalMult * 100).toFixed(0) + "% = " + (multiplier * 100).toFixed(0) + "%.";
+              else if (accuracy >= 60) modelNote = "Model overestimating — consider reducing BOM_CONDITION_TO_SOLAR['" + condition + "'] from " + weatherMult.toFixed(2) + " (seasonal adj: ×" + seasonalMult.toFixed(2) + ")";
               else modelNote = "Significant deviation — check for shading, panel issues, or intermittent cloud not reflected in BOM condition.";
             }
 
@@ -3873,7 +3889,7 @@ function BatteryROI() {
                 <div style={{ background: "#0a0f1a", borderRadius: "8px", padding: "12px", textAlign: "center", border: "1px solid #1e293b" }}>
                   <div style={{ fontSize: "28px", marginBottom: "4px" }}>{getConditionIcon(condition)}</div>
                   <div style={{ fontSize: "13px", fontWeight: 600, color: "#e2e8f0" }}>{condition.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</div>
-                  <div style={{ fontSize: "10px", color: "#64748b", marginTop: "2px" }}>Multiplier: {(multiplier * 100).toFixed(0)}%</div>
+                  <div style={{ fontSize: "10px", color: "#64748b", marginTop: "2px" }}>Weather: {(weatherMult * 100).toFixed(0)}% · Season: {(seasonalMult * 100).toFixed(0)}%</div>
                   {todayPred.tempMax && <div style={{ fontSize: "10px", color: "#64748b" }}>{todayPred.tempMax}°/{todayPred.tempMin}° · {todayPred.rainChance || 0}% rain</div>}
                 </div>
 
