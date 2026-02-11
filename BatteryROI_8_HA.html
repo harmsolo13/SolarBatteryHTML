@@ -208,45 +208,6 @@ async function fetchHAWeatherForecast() {
   }
 }
 
-// Convert HA forecast to battery prediction format
-function convertHAForecastToBatteryPrediction(haForecast, avgSolarPerDay) {
-  const predictions = [];
-
-  for (let i = 0; i < Math.min(haForecast.forecast.length, 7); i++) {
-    const day = haForecast.forecast[i];
-    const dateObj = new Date(day.datetime);
-
-    // Predict solar generation based on condition
-    const predictedSolarKwh = (avgSolarPerDay * day.solar_multiplier).toFixed(1);
-
-    // Estimate battery SOC (simplified model)
-    // Assumes battery starts at 50% and charges with predicted solar
-    const batteryCapacity = 27.36; // kWh usable
-    const startingSOC = batteryCapacity * 0.5;
-    const solarToBattery = Math.min(predictedSolarKwh * 0.8, batteryCapacity - startingSOC); // 80% goes to battery
-    const maxSOC = Math.min(startingSOC + solarToBattery, batteryCapacity);
-    const fillPct = (maxSOC / batteryCapacity) * 100;
-
-    predictions.push({
-      date: day.date,
-      dateObj: dateObj,
-      dayName: dateObj.toLocaleDateString('en-AU', { weekday: 'short' }),
-      condition: day.condition.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-      conditionIcon: getConditionIcon(day.condition),
-      tempMax: day.temperature,
-      tempMin: day.templow,
-      rainChance: day.precipitation_probability || 0,
-      precipitation: day.precipitation || 0,
-      solarMultiplier: day.solar_multiplier,
-      predictedSolarKwh: predictedSolarKwh,
-      maxSOC: maxSOC.toFixed(1),
-      fillPct: fillPct.toFixed(0)
-    });
-  }
-
-  return predictions;
-}
-
 // Get icon for condition
 function getConditionIcon(condition) {
   const iconMap = {
@@ -296,7 +257,7 @@ const pct = (v, d = 0) => `${v.toFixed(d)}%`;
 
 /* ── Historical ROI Data (embedded) ── */
 const HISTORICAL_ROI_DATA = {
-  "battery_spec": {"capacity_kwh": 28.8, "usable_kwh": 27.36, "cost": 10700, "rebate": 1500, "net_cost": 9200},
+  "battery_spec": {"capacity_kwh": 33.28, "usable_kwh": 32, "cost": 10700, "rebate": 1500, "net_cost": 9200},
   "annual_no_sharer": {"cost_no_battery": 3124.47, "cost_with_battery": 1552.09, "savings": 1572.38, "payback_years": 5.85},
   "annual_with_sharer": {"cost_no_battery": 3124.47, "cost_with_battery": 1552.09, "savings": 1572.38, "payback_years": 5.85},
   "monthly_results": [
@@ -384,13 +345,12 @@ function predictSolarFromWeather(weatherDay, historicalAvgSolar) {
 }
 
 // Predict battery performance based on predicted solar
-function predictBatteryPerformance(predictedSolarKwh, batteryCapacityKwh = 27.36) {
+function predictBatteryPerformance(predictedSolarKwh, batteryCapacityKwh = 32, chargeRateKw = 8, efficiencyPct = 97.5) {
   // Simple model: assume linear charging from 0 to predicted solar over daylight hours
-  const chargeRate = 4.3; // kW
-  const efficiency = 0.96;
+  const efficiency = efficiencyPct / 100;
 
   // Estimate charging hours (approximate)
-  const chargingHours = Math.min(predictedSolarKwh / (chargeRate * efficiency), 8);
+  const chargingHours = Math.min(predictedSolarKwh / (chargeRateKw * efficiency), 8);
   const maxSOC = Math.min(predictedSolarKwh * efficiency, batteryCapacityKwh);
   const fillPct = (maxSOC / batteryCapacityKwh) * 100;
 
@@ -398,7 +358,7 @@ function predictBatteryPerformance(predictedSolarKwh, batteryCapacityKwh = 27.36
   let timeToFull = null;
   if (fillPct >= 95) {
     // Assume charging starts at 8am and reaches 95% at:
-    const hoursTo95 = (batteryCapacityKwh * 0.95) / (chargeRate * efficiency);
+    const hoursTo95 = (batteryCapacityKwh * 0.95) / (chargeRateKw * efficiency);
     const hour = 8 + Math.min(hoursTo95, 8);
     timeToFull = `${Math.floor(hour)}:${Math.floor((hour % 1) * 60).toString().padStart(2, '0')}`;
   }
@@ -1163,8 +1123,9 @@ function BatteryROI() {
     payType: "upfront", financeTerm: 5, financeRate: 6.5,
     useAmber: true, amberFitAvg: 0.12, amberImportDisc: 0.25,
     amberSpikeMult: 1.0, amberFee: 25, scenario: 1.0,
-    installerName: "MLEC", batteryModel: "Alpha ESS", batteryCapacity: 28.8,
-    usableCapacity: 27.36, location: "Adelaide", provider: "Amber Electric",
+    installerName: "MLEC", batteryModel: "GoodWe GW8.3-BAT-D-G21", batteryCapacity: 33.28,
+    usableCapacity: 32, inverterPower: 8, chargeRate: 8, inverterEfficiency: 97.5,
+    location: "Adelaide", provider: "Amber Electric",
   });
 
   // Analysis sub-view state
@@ -1286,14 +1247,14 @@ function BatteryROI() {
               if (!forecastData && HISTORICAL_ROI_DATA?.daily_results) {
                 const dr = HISTORICAL_ROI_DATA.daily_results;
                 const avgSolar = dr.reduce((s, d) => s + d.total_solar_kwh, 0) / dr.length;
-                const bCap = (HISTORICAL_ROI_DATA.battery_spec || {}).usable_kwh || 27.36;
+                const bCap = cfg.usableCapacity || 32;
                 const preds = wxData.forecast.slice(0, 7).map(day => {
                   const weatherMult = BOM_CONDITION_TO_SOLAR[day.condition] || 0.5;
                   const forecastDate = new Date(day.date + 'T00:00:00');
                   const seasonalMult = SEA.feedIn[forecastDate.getMonth()] || 1.0;
                   const combinedMult = weatherMult * seasonalMult;
                   const predKwh = avgSolar * combinedMult;
-                  const batteryPred = predictBatteryPerformance(predKwh, bCap);
+                  const batteryPred = predictBatteryPerformance(predKwh, bCap, cfg.chargeRate || 8, cfg.inverterEfficiency || 97.5);
                   return {
                     date: day.date,
                     dayName: forecastDate.toLocaleDateString('en-AU', { weekday: 'short' }),
@@ -2107,6 +2068,14 @@ function BatteryROI() {
                   <div><label style={S.lbl}>Usable (kWh)</label>
                     <input type="number" step={0.1} value={cfg.usableCapacity} onChange={e => upC("usableCapacity", +e.target.value)} style={S.inp} /></div>
                 </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px" }}>
+                  <div><label style={S.lbl}>Inverter (kW)</label>
+                    <input type="number" step={0.1} value={cfg.inverterPower} onChange={e => upC("inverterPower", +e.target.value)} style={S.inp} /></div>
+                  <div><label style={S.lbl}>Charge Rate (kW)</label>
+                    <input type="number" step={0.1} value={cfg.chargeRate} onChange={e => upC("chargeRate", +e.target.value)} style={S.inp} /></div>
+                  <div><label style={S.lbl}>Efficiency (%)</label>
+                    <input type="number" step={0.1} value={cfg.inverterEfficiency} onChange={e => upC("inverterEfficiency", +e.target.value)} style={S.inp} /></div>
+                </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
                   <div><label style={S.lbl}>Location</label>
                     <input type="text" value={cfg.location} onChange={e => upC("location", e.target.value)} style={S.inp} /></div>
@@ -2416,7 +2385,7 @@ function BatteryROI() {
 
           const allMonthly = historicalData.monthly_results;
           const annual = historicalData.annual_no_sharer;
-          const batterySpec = historicalData.battery_spec;
+          const batterySpec = { ...historicalData.battery_spec, usable_kwh: cfg.usableCapacity || historicalData.battery_spec?.usable_kwh || 32 };
 
           // Actual purchase mode uses cfg from Battery tab
           const isActual = roiMode === 'actual';
@@ -2813,7 +2782,7 @@ function BatteryROI() {
                       <YAxis yAxisId="right" orientation="right" tick={{ fill: "#64748b", fontSize: 11 }} tickFormatter={v => `${v.toFixed(0)}%`} />
                       <Tooltip content={<TT />} />
                       <Legend wrapperStyle={{ fontSize: "11px" }} />
-                      <ReferenceLine yAxisId="left" y={batterySpec.usable_kwh} stroke="#34d399" strokeDasharray="3 3" label={{ value: 'Full (27.4 kWh)', fill: "#34d399", fontSize: 10 }} />
+                      <ReferenceLine yAxisId="left" y={batterySpec.usable_kwh} stroke="#34d399" strokeDasharray="3 3" label={{ value: `Full (${batterySpec.usable_kwh} kWh)`, fill: "#34d399", fontSize: 10 }} />
                       <Area yAxisId="left" type="monotone" dataKey="Battery SOC (kWh)" stroke="#fbbf24" strokeWidth={3} fillOpacity={1} fill="url(#dailyChargeGradient)" />
                     </AreaChart>
                   </ResponsiveContainer>
@@ -2929,7 +2898,7 @@ function BatteryROI() {
             </div>
           ) : (() => {
             const dailyResults = historicalData.daily_results;
-            const batterySpec = historicalData.battery_spec || { usable_kwh: 27.36 };
+            const batterySpec = { ...historicalData.battery_spec, usable_kwh: cfg.usableCapacity || historicalData.battery_spec?.usable_kwh || 32 };
 
           // Find the selected day's data
           const selectedDay = dailyResults.find(d => d.date === selectedDate);
@@ -3135,7 +3104,7 @@ function BatteryROI() {
                       contentStyle={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', fontSize: '12px' }}
                       labelStyle={{ color: '#e2e8f0', fontWeight: 600 }}
                     />
-                    <ReferenceLine y={batterySpec.usable_kwh} stroke="#34d399" strokeDasharray="3 3" label={{ value: 'Full (27.36 kWh)', fill: '#34d399', fontSize: 10 }} />
+                    <ReferenceLine y={batterySpec.usable_kwh} stroke="#34d399" strokeDasharray="3 3" label={{ value: `Full (${batterySpec.usable_kwh} kWh)`, fill: '#34d399', fontSize: 10 }} />
                     <ReferenceLine y={batterySpec.usable_kwh * 0.5} stroke="#fbbf24" strokeDasharray="3 3" label={{ value: '50%', fill: '#fbbf24', fontSize: 10 }} />
                     <Area type="monotone" dataKey="Battery SOC (kWh)" stroke="#a78bfa" strokeWidth={2} fill="url(#socGradient)" />
                   </AreaChart>
@@ -3286,7 +3255,7 @@ function BatteryROI() {
               {(() => {
                 // Capture variables from outer scope (closure)
                 const _dailyResults = typeof dailyResults !== 'undefined' ? dailyResults : historicalData.daily_results;
-                const _batterySpec = typeof batterySpec !== 'undefined' ? batterySpec : historicalData.battery_spec || { usable_kwh: 27.36 };
+                const _batterySpec = { usable_kwh: cfg.usableCapacity || 32 };
                 const _avgSolarAllDays = typeof avgSolarAllDays !== 'undefined' ? avgSolarAllDays : _dailyResults.reduce((sum, d) => sum + d.total_solar_kwh, 0) / _dailyResults.length;
 
                 const loadForecast = async () => {
@@ -3317,7 +3286,7 @@ function BatteryROI() {
                       const seasonalMult = SEA.feedIn[forecastDate.getMonth()] || 1.0;
                       const solarMultiplier = weatherMult * seasonalMult;
                       const predictedSolarKwh = avgSolar * solarMultiplier;
-                      const batteryPred = predictBatteryPerformance(predictedSolarKwh, _batterySpec.usable_kwh);
+                      const batteryPred = predictBatteryPerformance(predictedSolarKwh, _batterySpec.usable_kwh, cfg.chargeRate || 8, cfg.inverterEfficiency || 97.5);
 
                       // Estimate cloud cover from condition for display
                       const cloudCover = day.precipitation_probability > 70 ? 90 : day.precipitation_probability > 40 ? 70 : Math.round((1 - weatherMult) * 100);
@@ -3741,7 +3710,7 @@ function BatteryROI() {
               { label: "Grid Voltage", value: `${solarLive?.grid_voltage || 0}V`, color: "#a78bfa", icon: "⚡" },
               { label: "Exported Power", value: `${(solarLive?.exported_power || 0).toLocaleString()}W`, color: "#34d399", icon: "📤" },
               { label: "Today's Yield", value: `${solarLive?.today_yield?.toFixed(1) || '0.0'} kWh`, color: "#38bdf8", icon: "📊" },
-              { label: "Total Yield", value: `${(solarLive?.total_yield || 0).toFixed(0)} kWh`, color: "#818cf8", icon: "🔋" },
+              { label: "Total Yield", value: `${(solarLive?.total_yield || 0).toLocaleString(undefined, {minimumFractionDigits: 1, maximumFractionDigits: 1})} kWh`, color: "#818cf8", icon: "🔋" },
               { label: "Inverter Temp", value: `${solarLive?.inverter_temp || 0}°C`, color: solarLive?.inverter_temp > 60 ? "#f87171" : "#34d399", icon: "🌡️" },
               { label: "Status", value: solarLive?.status == 2 ? "Generating" : solarLive?.status == 0 ? "Standby" : `Code ${solarLive?.status}`, color: solarLive?.status == 2 ? "#34d399" : "#fbbf24", icon: "✅" },
             ].map((s, i) => (
@@ -3796,7 +3765,7 @@ function BatteryROI() {
 
           {/* PV Power Gauge */}
           {(() => {
-            const maxPV = 6600; // ~6.6kW system
+            const maxPV = (cfg.inverterPower || 5) * 1000; // From Setup tab inverter power
             const currentPV = solarLive?.total_pv_power || 0;
             const pct = Math.min((currentPV / maxPV) * 100, 100);
             const barColor = pct > 80 ? "#34d399" : pct > 50 ? "#fbbf24" : pct > 20 ? "#fb923c" : "#64748b";
@@ -3958,7 +3927,7 @@ function BatteryROI() {
             );
           })()}
 
-          {/* Today's Power Curve (Solax-style) */}
+          {/* Today's Power Curve (Solax-style) with Forecast overlay */}
           {(() => {
             // Use raw 5-min readings for smooth curve, fall back to hourly aggregates
             const hasRaw = solarToday.length > 0;
@@ -3970,13 +3939,52 @@ function BatteryROI() {
                   exported: r.exported_power || 0,
                 }))
               : solarHourly.map(h => ({
-                  time: `${h.hour}:00`,
+                  time: `${String(h.hour).padStart(2, '0')}:00`,
                   solar: Math.round(h.avg_power || 0),
                   grid: Math.round(h.avg_grid || 0),
                   exported: Math.round(h.avg_export || 0),
                 }));
             if (chartData.length === 0) return null;
-            const maxPower = Math.max(...chartData.map(d => Math.max(d.solar, d.grid)), 1000);
+
+            // Build forecast power curve using sine model + BOM weather
+            const _month = new Date().getMonth();
+            const _sunrise = [6.0, 6.5, 7.0, 6.5, 7.0, 7.2, 7.0, 6.5, 6.0, 5.5, 5.5, 5.8][_month];
+            const _sunset = [20.5, 20.0, 19.0, 17.5, 17.0, 17.0, 17.2, 17.8, 18.5, 19.2, 20.0, 20.5][_month];
+            const _todayStr = new Date().toISOString().split('T')[0];
+            const _todayPred = forecastData?.find(d => d.date === _todayStr) || forecastData?.[0];
+            const _predictedKwh = parseFloat(_todayPred?.predictedSolarKwh || 0);
+            const _solarWindow = _sunset - _sunrise;
+            // P_peak such that integral of sine curve = predicted kWh: P_peak = kWh * 1000 * π / (2 * hours)
+            const _peakW = _predictedKwh > 0 ? Math.min((_predictedKwh * 1000 * Math.PI) / (2 * _solarWindow), (cfg.inverterPower || 5) * 1000) : 0;
+            const hasForecast = _peakW > 0;
+
+            const forecastAt = (timeStr) => {
+              const p = timeStr.split(':');
+              const hr = parseInt(p[0]) + parseInt(p[1]) / 60;
+              if (hr < _sunrise || hr > _sunset) return 0;
+              return Math.round(_peakW * Math.sin(Math.PI * (hr - _sunrise) / _solarWindow));
+            };
+
+            // Add forecast value to each actual data point
+            if (hasForecast) {
+              chartData.forEach(d => { d.forecast = forecastAt(d.time); });
+              // Append future forecast-only points (5-min intervals from last reading to sunset)
+              const lastTime = chartData[chartData.length - 1]?.time;
+              if (lastTime) {
+                const lp = lastTime.split(':');
+                let nextMin = parseInt(lp[0]) * 60 + parseInt(lp[1]) + 5;
+                const endMin = Math.ceil(_sunset * 60);
+                while (nextMin <= endMin) {
+                  const hh = Math.floor(nextMin / 60);
+                  const mm = nextMin % 60;
+                  const ts = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+                  chartData.push({ time: ts, solar: null, grid: null, exported: null, forecast: forecastAt(ts) });
+                  nextMin += 5;
+                }
+              }
+            }
+
+            const maxPower = Math.max(...chartData.map(d => Math.max(d.solar || 0, d.grid || 0, d.forecast || 0)), 1000);
             const yMax = Math.ceil(maxPower / 1000) * 1000;
             return (
             <div style={S.card}>
@@ -3984,10 +3992,11 @@ function BatteryROI() {
                 <div>
                   <div style={{ fontSize: "14px", fontWeight: 700, color: "#fb923c" }}>Power</div>
                 </div>
-                <div style={{ display: "flex", gap: "16px", fontSize: "11px", alignItems: "center" }}>
+                <div style={{ display: "flex", gap: "16px", fontSize: "11px", alignItems: "center", flexWrap: "wrap" }}>
                   <span style={{ display: "flex", alignItems: "center", gap: "4px" }}><span style={{ width: "10px", height: "10px", background: "#fb923c", borderRadius: "2px", display: "inline-block" }}></span> Solar Power</span>
                   <span style={{ display: "flex", alignItems: "center", gap: "4px" }}><span style={{ width: "10px", height: "10px", background: "#34d399", borderRadius: "2px", display: "inline-block" }}></span> Grid Power</span>
                   <span style={{ display: "flex", alignItems: "center", gap: "4px" }}><span style={{ width: "10px", height: "10px", background: "#38bdf8", borderRadius: "2px", display: "inline-block" }}></span> Exported</span>
+                  {hasForecast && <span style={{ display: "flex", alignItems: "center", gap: "4px" }}><span style={{ width: "10px", height: "3px", background: "#f59e0b", borderTop: "2px dashed #f59e0b", display: "inline-block" }}></span> Forecast ({_predictedKwh} kWh)</span>}
                 </div>
               </div>
               <ResponsiveContainer width="100%" height={300}>
@@ -4011,7 +4020,7 @@ function BatteryROI() {
                     dataKey="time"
                     stroke="#475569"
                     fontSize={10}
-                    interval={hasRaw ? Math.max(Math.floor(chartData.length / 12), 1) : 0}
+                    interval={Math.max(Math.floor(chartData.length / 12), 1)}
                   />
                   <YAxis
                     stroke="#475569"
@@ -4023,11 +4032,15 @@ function BatteryROI() {
                   <Tooltip
                     contentStyle={{ background: "#0f172a", border: "1px solid #334155", borderRadius: "8px", fontSize: "12px", color: "#e2e8f0" }}
                     labelStyle={{ color: "#94a3b8", fontWeight: 600 }}
-                    formatter={(value, name) => [`${Number(value).toLocaleString()}W`, name]}
+                    formatter={(value, name) => {
+                      if (value === null || value === undefined) return ['-', name];
+                      return [`${Number(value).toLocaleString()}W`, name];
+                    }}
                   />
-                  <Area type="monotone" dataKey="solar" name="Solar Power" stroke="#fb923c" fill="url(#gradSolar)" strokeWidth={2} dot={false} />
-                  <Area type="monotone" dataKey="grid" name="Grid Power" stroke="#34d399" fill="url(#gradGrid)" strokeWidth={1.5} dot={false} />
-                  <Area type="monotone" dataKey="exported" name="Exported" stroke="#38bdf8" fill="url(#gradExport)" strokeWidth={1.5} dot={false} />
+                  {hasForecast && <Area type="monotone" dataKey="forecast" name="Forecast" stroke="#f59e0b" fill="none" strokeWidth={2} strokeDasharray="6 3" dot={false} connectNulls={false} />}
+                  <Area type="monotone" dataKey="solar" name="Solar Power" stroke="#fb923c" fill="url(#gradSolar)" strokeWidth={2} dot={false} connectNulls={false} />
+                  <Area type="monotone" dataKey="grid" name="Grid Power" stroke="#34d399" fill="url(#gradGrid)" strokeWidth={1.5} dot={false} connectNulls={false} />
+                  <Area type="monotone" dataKey="exported" name="Exported" stroke="#38bdf8" fill="url(#gradExport)" strokeWidth={1.5} dot={false} connectNulls={false} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -4098,7 +4111,7 @@ function BatteryROI() {
                   { label: "Collector Status", value: solarStats.collector_status || "unknown" },
                   { label: "Total Readings", value: (solarStats.total_readings || 0).toLocaleString() },
                   { label: "Days Collected", value: solarStats.days_collected || 0 },
-                  { label: "Lifetime Yield", value: `${(solarLive?.total_yield || 0).toFixed(0)} kWh` },
+                  { label: "Lifetime Yield", value: `${(solarLive?.total_yield || 0).toLocaleString(undefined, {minimumFractionDigits: 1, maximumFractionDigits: 1})} kWh` },
                   { label: "Last Update", value: solarLive?.timestamp || "N/A" },
                 ].map((info, i) => (
                   <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid #1e293b" }}>

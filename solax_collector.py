@@ -35,7 +35,7 @@ FIELDS = {
     10: 'exported_power',
     11: 'pv1_power',
     12: 'pv2_power',
-    51: 'grid_frequency',
+    50: 'grid_frequency',
     58: 'feed_in_power',
 }
 
@@ -149,9 +149,8 @@ def poll_inverter():
         # Calculate total PV power
         parsed['total_pv_power'] = (parsed.get('pv1_power', 0) or 0) + (parsed.get('pv2_power', 0) or 0)
 
-        # Total yield is stored as ×10 in the API
-        if 'total_yield' in parsed:
-            parsed['total_yield'] = parsed['total_yield'] / 10.0
+        # total_yield from inverter is in kWh (same unit as today_yield)
+        # Previously divided by 10 incorrectly — removed 2026-02-11
 
         parsed['status'] = int(data.get('Status', 0))
         parsed['sn'] = data.get('SN', '')
