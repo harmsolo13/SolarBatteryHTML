@@ -202,6 +202,9 @@ def update_daily_aggregate(date_str=None):
         date_str = datetime.now().strftime('%Y-%m-%d')
 
     db = sqlite3.connect(DB_PATH)
+    # Exclude readings before 00:15 to avoid stale today_yield from previous day
+    # (inverter resets its daily counter ~5min after midnight, so early readings
+    # carry yesterday's final yield which can poison MAX)
     row = db.execute("""
         SELECT
             MAX(today_yield) as total_yield,
@@ -213,6 +216,7 @@ def update_daily_aggregate(date_str=None):
             COUNT(*) as readings
         FROM solar_readings
         WHERE substr(timestamp, 1, 10) = ?
+          AND substr(timestamp, 12, 5) > '00:15'
     """, (date_str,)).fetchone()
 
     if row and row[0] is not None:

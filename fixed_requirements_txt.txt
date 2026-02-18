@@ -1,0 +1,57 @@
+# Enhanced Jarvis AI - Dependencies
+streamlit>=1.28.0
+fastapi>=0.104.0
+uvicorn>=0.24.0
+
+# Core AI Libraries
+openai>=1.3.0
+sentence-transformers>=2.2.2
+scikit-learn>=1.3.0
+numpy>=1.24.0
+
+# LangChain Core (Compatible versions)
+langchain>=0.3.0
+langchain-community>=0.3.0
+langchain-openai>=0.3.0
+langchain-experimental>=0.3.0
+
+# Vector Stores and Embeddings  
+faiss-cpu>=1.7.4
+chromadb>=0.4.18
+
+# Document Processing
+unstructured>=0.11.6
+pypdf>=3.17.0
+docx2txt>=0.8
+python-docx>=1.1.0
+markdown>=3.5.1
+
+# Model Providers
+ollama>=0.1.7
+
+# Tools and Utilities
+duckduckgo-search>=3.9.6
+wikipedia>=1.4.0
+requests>=2.31.0
+beautifulsoup4>=4.12.2
+tiktoken>=0.5.2
+
+# Data Processing
+pandas>=2.0.0
+pydantic>=2.0.0
+
+# Memory and Persistence
+redis>=5.0.1
+sqlalchemy>=2.0.0
+
+# Performance and Monitoring
+psutil>=5.9.6
+memory-profiler>=0.61.0
+
+# Security and Configuration
+python-dotenv>=1.0.0
+cryptography>=41.0.0
+
+# Additional utilities
+pathlib2>=2.3.7
+tenacity>=8.2.3

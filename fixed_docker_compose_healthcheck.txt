@@ -1,0 +1,20 @@
+chroma:
+    image: chromadb/chroma:latest
+    container_name: jarvis-chroma
+    ports:
+      - "8000:8000"
+    volumes:
+      - chroma_data:/chroma/chroma
+    environment:
+      - CHROMA_SERVER_HOST=0.0.0.0
+      - CHROMA_SERVER_HTTP_PORT=8000
+    restart: unless-stopped
+    healthcheck:
+      # Updated to use v2 API
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v2/heartbeat"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - jarvis-network

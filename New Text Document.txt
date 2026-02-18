@@ -1,0 +1,9 @@
+sudo chmod +x deploy_proxima.sh
+sudo ./deploy_proxima.sh
+
+
+sudo nano /opt/proxima-ai/.env
+# Find OPENAI_API_KEY and add your key
+
+
+proxima-stop && proxima-start
