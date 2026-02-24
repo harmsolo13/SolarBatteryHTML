@@ -53,6 +53,10 @@ function BatteryROI() {
   const [openMeteoError, setOpenMeteoError] = useState(null);
   const [forecastSubView, setForecastSubView] = useState('daily');
 
+  // Live DB merge state
+  const [liveDataLoaded, setLiveDataLoaded] = useState(false);
+  const [liveMonthCount, setLiveMonthCount] = useState(0);
+
   // Finance scenario override (from FinanceCalculator)
   const [financeOverride, setFinanceOverride] = useState(null);
 
@@ -79,27 +83,52 @@ function BatteryROI() {
     } catch {}
   }, [entries, rateSets, cfg, purchaseDate]);
 
-  /* Load historical ROI data when tab 2 is accessed */
+  /* Load historical ROI data when tab 2 is accessed — embedded first, then merge live */
   useEffect(() => {
     if (tab === 2 && !historicalData && !historicalLoading) {
       setHistoricalLoading(true);
-      // Use embedded data instead of fetching
-      setTimeout(() => {
-        if (HISTORICAL_ROI_DATA && HISTORICAL_ROI_DATA.monthly_results) {
-          setHistoricalData(HISTORICAL_ROI_DATA);
-          if (!selectedDate && HISTORICAL_ROI_DATA.daily_results && HISTORICAL_ROI_DATA.daily_results.length > 0) {
-            // Default to today if within data range, otherwise most recent data point
-            const today = new Date().toISOString().split('T')[0];
-            const dr = HISTORICAL_ROI_DATA.daily_results;
-            const lastDate = dr[dr.length - 1].date;
-            setSelectedDate(today <= lastDate ? today : lastDate);
-          }
-          setHistoricalLoading(false);
-        } else {
-          setHistoricalError(true);
-          setHistoricalLoading(false);
+      // Instant render from embedded data
+      if (HISTORICAL_ROI_DATA && HISTORICAL_ROI_DATA.monthly_results) {
+        setHistoricalData(HISTORICAL_ROI_DATA);
+        if (!selectedDate && HISTORICAL_ROI_DATA.daily_results && HISTORICAL_ROI_DATA.daily_results.length > 0) {
+          const today = new Date().toISOString().split('T')[0];
+          const dr = HISTORICAL_ROI_DATA.daily_results;
+          const lastDate = dr[dr.length - 1].date;
+          setSelectedDate(today <= lastDate ? today : lastDate);
         }
-      }, 100); // Small delay for visual feedback
+        setHistoricalLoading(false);
+
+        // Async fetch live data and merge
+        (async () => {
+          try {
+            const resp = await fetch(`${SOLAR_API_URL}/roi-daily`);
+            if (!resp.ok) return;
+            const liveRaw = await resp.json();
+            if (!liveRaw.daily || liveRaw.daily.length === 0) return;
+            const liveTransformed = transformLiveToHistorical(liveRaw.daily, liveRaw.monthly, cfg);
+            const merged = mergeHistoricalData(HISTORICAL_ROI_DATA, liveTransformed);
+            setHistoricalData(merged);
+            setLiveDataLoaded(true);
+            setLiveMonthCount(merged.monthly_results.length);
+            // Update selectedDate to most recent if current is beyond embedded range
+            const dr = merged.daily_results;
+            if (dr.length > 0) {
+              const today = new Date().toISOString().split('T')[0];
+              const lastDate = dr[dr.length - 1].date;
+              setSelectedDate(prev => {
+                if (!prev || prev > lastDate) return lastDate;
+                if (prev <= lastDate && today <= lastDate) return today;
+                return prev;
+              });
+            }
+          } catch (e) {
+            console.warn('Live solar data merge failed:', e);
+          }
+        })();
+      } else {
+        setHistoricalError(true);
+        setHistoricalLoading(false);
+      }
     }
   }, [tab, historicalData, historicalLoading]);
 
@@ -697,6 +726,7 @@ function BatteryROI() {
           forecast={forecast}
           financeOverride={financeOverride} annualBill={annualBill}
           blendedRates={blendedRates} fmt={fmt} fmt2={fmt2} pct={pct} MO={MO}
+          liveDataLoaded={liveDataLoaded} liveMonthCount={liveMonthCount}
         />}
 
         {/* ═══ TAB 3: FORECAST ═══ */}

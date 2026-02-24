@@ -458,6 +458,205 @@ function generateAcceleratedSchedule(principal, annualRate, termYears, monthlySa
   };
 }
 
+/* ── Adelaide sunrise/sunset hours by month (0=Jan) for SOC curve generation ── */
+const ADELAIDE_SUNRISE_HOUR = [6.1, 6.6, 7.0, 7.3, 7.1, 7.2, 7.1, 6.7, 6.1, 6.3, 5.9, 5.8];
+const ADELAIDE_SUNSET_HOUR  = [20.4, 20.0, 19.3, 18.3, 17.5, 17.2, 17.4, 17.9, 18.5, 19.1, 19.8, 20.4];
+
+/* ── Derive synthetic hourly SOC array from daily total solar ── */
+function deriveHourlySoc(totalSolarKwh, dateStr, cfg) {
+  const dateObj = new Date(dateStr + 'T00:00:00');
+  const month = dateObj.getMonth();
+  const sunrise = ADELAIDE_SUNRISE_HOUR[month];
+  const sunset = ADELAIDE_SUNSET_HOUR[month];
+  const batteryCapacity = cfg.usableCapacity || cfg.batteryCapacity || 32;
+  const efficiency = (cfg.inverterEfficiency || 97.5) / 100;
+
+  const soc = {};
+  let cumSoc = 0;
+
+  for (let h = 4; h <= 21; h++) {
+    if (h < sunrise || h > sunset) {
+      soc[String(h)] = Math.round(cumSoc * 100) / 100;
+      continue;
+    }
+    // Sine-curve distribution: peak generation at solar noon
+    const solarNoon = (sunrise + sunset) / 2;
+    const halfWindow = (sunset - sunrise) / 2;
+    const angle = ((h - solarNoon) / halfWindow) * (Math.PI / 2);
+    const weight = Math.max(0, Math.cos(angle));
+
+    // Distribute total solar across daylight hours proportionally
+    const totalWeight = Array.from({length: Math.ceil(sunset - sunrise)}, (_, i) => {
+      const hr = Math.floor(sunrise) + i;
+      const a = ((hr - solarNoon) / halfWindow) * (Math.PI / 2);
+      return Math.max(0, Math.cos(a));
+    }).reduce((s, w) => s + w, 0);
+
+    const hourKwh = totalWeight > 0 ? (totalSolarKwh * weight / totalWeight) : 0;
+    cumSoc = Math.min(cumSoc + hourKwh * efficiency, batteryCapacity);
+    soc[String(h)] = Math.round(cumSoc * 100) / 100;
+  }
+  return soc;
+}
+
+/* ── Transform live DB data to historicalData shape ── */
+function transformLiveToHistorical(liveDaily, liveMonthly, cfg) {
+  const dailyResults = liveDaily
+    .filter(d => d.total_yield_kwh > 0)
+    .map(d => {
+      const dateStr = d.date;
+      const solarKwh = d.total_yield_kwh || 0;
+      const bCap = cfg.usableCapacity || cfg.batteryCapacity || 32;
+      const chargeRate = cfg.chargeRate || 8;
+      const eff = (cfg.inverterEfficiency || 97.5) / 100;
+
+      const maxSoc = Math.min(solarKwh * eff, bCap);
+      const fillPct = (maxSoc / bCap) * 100;
+
+      let timeToFull = null;
+      if (fillPct >= 95) {
+        const hoursTo95 = (bCap * 0.95) / (chargeRate * eff);
+        const hour = 8 + Math.min(hoursTo95, 8);
+        timeToFull = `${Math.floor(hour)}:${Math.floor((hour % 1) * 60).toString().padStart(2, '0')}`;
+      }
+
+      const dateObj = new Date(dateStr + 'T00:00:00');
+      const dayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+
+      return {
+        date: dateStr,
+        day_of_week: dayNames[dateObj.getDay()],
+        total_solar_kwh: Math.round(solarKwh * 100) / 100,
+        max_battery_soc_kwh: Math.round(maxSoc * 100) / 100,
+        battery_filled_pct: Math.round(fillPct * 10) / 10,
+        time_to_full: timeToFull,
+        hourly_soc: deriveHourlySoc(solarKwh, dateStr, cfg)
+      };
+    });
+
+  // Monthly: compute cost estimates from solar generation
+  const buyRate = cfg.buyRate || 0.35;
+  const sellRate = cfg.sellRate || 0.07;
+  const dailySupply = cfg.dailySupply || 1.17;
+  const dailyUsage = cfg.dailyUsage || 20;
+
+  const monthlyResults = liveMonthly.map(m => {
+    const daysInMonth = m.days_with_data || 30;
+    const solarTotal = m.total_yield_kwh || 0;
+    const bCap = cfg.usableCapacity || cfg.batteryCapacity || 32;
+
+    // Estimate monthly consumption
+    const consumption = dailyUsage * daysInMonth;
+    // Cost without battery: all from grid
+    const costNoBattery = (consumption * buyRate) + (dailySupply * daysInMonth);
+    // With battery: self-consume up to battery capacity per day, export rest
+    const avgDailySolar = solarTotal / Math.max(daysInMonth, 1);
+    const dailySelfConsume = Math.min(avgDailySolar, Math.min(dailyUsage, bCap));
+    const dailyExport = Math.max(0, avgDailySolar - dailySelfConsume);
+    const dailyGridImport = Math.max(0, dailyUsage - dailySelfConsume);
+    const costWithBattery = (dailyGridImport * daysInMonth * buyRate) + (dailySupply * daysInMonth) - (dailyExport * daysInMonth * sellRate);
+
+    return {
+      month: m.month,
+      solar_total: Math.round(solarTotal * 100) / 100,
+      consumption: Math.round(consumption * 100) / 100,
+      cost_no_battery: Math.round(costNoBattery * 100) / 100,
+      cost_with_battery: Math.round(costWithBattery * 100) / 100,
+      savings: Math.round((costNoBattery - costWithBattery) * 100) / 100,
+      savings_with_sharer: Math.round((costNoBattery - costWithBattery) * 100) / 100
+    };
+  });
+
+  return { daily_results: dailyResults, monthly_results: monthlyResults };
+}
+
+/* ── Merge embedded historical data with live DB data ── */
+function mergeHistoricalData(embedded, live) {
+  if (!live || (!live.daily_results.length && !live.monthly_results.length)) return embedded;
+  if (!embedded) return {
+    battery_spec: { capacity_kwh: 33.28, usable_kwh: 32, cost: 10700, rebate: 1500, net_cost: 9200 },
+    ...live,
+    annual_no_sharer: { cost_no_battery: 0, cost_with_battery: 0, savings: 0, payback_years: 0 },
+    annual_with_sharer: { cost_no_battery: 0, cost_with_battery: 0, savings: 0, payback_years: 0 },
+    daily_charging: { total_days: 0, days_full: 0, pct_days_full: 0 }
+  };
+
+  // Merge daily_results — deduplicate by date, live wins on conflict
+  const dailyMap = new Map();
+  (embedded.daily_results || []).forEach(d => dailyMap.set(d.date, d));
+  (live.daily_results || []).forEach(d => dailyMap.set(d.date, d));
+  const mergedDaily = Array.from(dailyMap.values()).sort((a, b) => a.date.localeCompare(b.date));
+
+  // Merge monthly_results — deduplicate by month, live wins on conflict
+  const monthlyMap = new Map();
+  (embedded.monthly_results || []).forEach(m => monthlyMap.set(m.month, m));
+  (live.monthly_results || []).forEach(m => monthlyMap.set(m.month, m));
+  const mergedMonthly = Array.from(monthlyMap.values()).sort((a, b) => a.month.localeCompare(b.month));
+
+  // Recompute annual summaries from merged monthly data
+  const totalCostNoBattery = mergedMonthly.reduce((s, m) => s + (m.cost_no_battery || 0), 0);
+  const totalCostWithBattery = mergedMonthly.reduce((s, m) => s + (m.cost_with_battery || 0), 0);
+  const totalSavings = totalCostNoBattery - totalCostWithBattery;
+  const monthCount = mergedMonthly.length;
+  const annualFactor = monthCount > 0 ? 12 / monthCount : 1;
+  const annualSavings = totalSavings * annualFactor;
+  const netCost = embedded.battery_spec?.net_cost || 9200;
+  const paybackYears = annualSavings > 0 ? netCost / annualSavings : 99;
+
+  const annual = {
+    cost_no_battery: Math.round(totalCostNoBattery * annualFactor * 100) / 100,
+    cost_with_battery: Math.round(totalCostWithBattery * annualFactor * 100) / 100,
+    savings: Math.round(annualSavings * 100) / 100,
+    payback_years: Math.round(paybackYears * 100) / 100
+  };
+
+  // Recompute daily_charging from merged daily data
+  const daysFull = mergedDaily.filter(d => (d.battery_filled_pct || 0) >= 95).length;
+  const fullDays = mergedDaily.filter(d => d.time_to_full);
+  let avgTimeToFull = embedded.daily_charging?.avg_time_to_full || null;
+  if (fullDays.length > 0) {
+    const totalMinutes = fullDays.reduce((s, d) => {
+      const [h, m] = d.time_to_full.split(':').map(Number);
+      return s + h * 60 + m;
+    }, 0);
+    const avgMin = totalMinutes / fullDays.length;
+    avgTimeToFull = `${Math.floor(avgMin / 60)}:${Math.floor(avgMin % 60).toString().padStart(2, '0')}`;
+  }
+
+  // Merge hourly_soc averages for daily_charging
+  const hourlySocSums = {};
+  const hourlySocCounts = {};
+  mergedDaily.forEach(d => {
+    if (!d.hourly_soc) return;
+    Object.entries(d.hourly_soc).forEach(([h, val]) => {
+      hourlySocSums[h] = (hourlySocSums[h] || 0) + val;
+      hourlySocCounts[h] = (hourlySocCounts[h] || 0) + 1;
+    });
+  });
+  const avgHourlySoc = {};
+  Object.keys(hourlySocSums).sort((a, b) => Number(a) - Number(b)).forEach(h => {
+    avgHourlySoc[h] = Math.round((hourlySocSums[h] / hourlySocCounts[h]) * 100) / 100;
+  });
+
+  return {
+    battery_spec: embedded.battery_spec,
+    annual_no_sharer: annual,
+    annual_with_sharer: annual,
+    monthly_results: mergedMonthly,
+    daily_results: mergedDaily,
+    daily_charging: {
+      total_days: mergedDaily.length,
+      days_full: daysFull,
+      pct_days_full: mergedDaily.length > 0 ? Math.round((daysFull / mergedDaily.length) * 1000) / 10 : 0,
+      avg_time_to_full: avgTimeToFull,
+      earliest_full: embedded.daily_charging?.earliest_full || null,
+      latest_full: embedded.daily_charging?.latest_full || null,
+      hourly_soc: avgHourlySoc,
+      seasons: embedded.daily_charging?.seasons || {}
+    }
+  };
+}
+
 /* ── Fresh Battery Baseline — models 100% capacity from day 1 ── */
 /* Daily results have: date, total_solar_kwh, max_battery_soc_kwh, battery_filled_pct, time_to_full */
 /* We estimate daily savings from battery fill % and solar, since daily_saving isn't in the data */

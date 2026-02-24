@@ -1,6 +1,7 @@
 /* Tab 2: Performance — Historical ROI data, charts, daily explorer */
 
-function AnalysisTab({ historicalData, historicalLoading, historicalError, analysisSubView, setAnalysisSubView, selectedDate, setSelectedDate, viewMode, setViewMode, roiMode, purchaseDate, cfg, netCost, monthlyPmt, forecast, financeOverride, annualBill, blendedRates, fmt, fmt2, pct, MO }) {
+function AnalysisTab({ historicalData, historicalLoading, historicalError, analysisSubView, setAnalysisSubView, selectedDate, setSelectedDate, viewMode, setViewMode, roiMode, purchaseDate, cfg, netCost, monthlyPmt, forecast, financeOverride, annualBill, blendedRates, fmt, fmt2, pct, MO, liveDataLoaded, liveMonthCount }) {
+  const [dateRange, setDateRange] = React.useState('all');
   return (<>
           {/* Sub-navigation pills */}
           <div style={{ display: "flex", gap: "6px", marginBottom: "16px", flexWrap: "wrap" }}>
@@ -53,7 +54,32 @@ function AnalysisTab({ historicalData, historicalLoading, historicalError, analy
           const filteredMonthly = isActual
             ? allMonthly.filter(m => padMonth(m.month) >= purchaseYM)
             : allMonthly;
-          const monthly = filteredMonthly.length > 0 ? filteredMonthly : allMonthly;
+          const preRangeMonthly = filteredMonthly.length > 0 ? filteredMonthly : allMonthly;
+
+          // Apply date range filter
+          const rangeFilteredMonthly = (() => {
+            if (dateRange === 'all') return preRangeMonthly;
+            const now = new Date();
+            const months = dateRange === '6mo' ? 6 : 12;
+            const cutoff = new Date(now.getFullYear(), now.getMonth() - months + 1, 1);
+            const cutoffStr = cutoff.toISOString().slice(0, 7);
+            return preRangeMonthly.filter(m => {
+              const pm = m.month.length === 6 ? m.month.slice(0, 5) + '0' + m.month.slice(5) : m.month;
+              return pm >= cutoffStr;
+            });
+          })();
+          const monthly = rangeFilteredMonthly.length > 0 ? rangeFilteredMonthly : preRangeMonthly;
+
+          // Date range label
+          const firstMonth = monthly[0]?.month || '';
+          const lastMonth = monthly[monthly.length - 1]?.month || '';
+          const formatRangeMonth = (ym) => {
+            if (!ym) return '';
+            const [y, m] = ym.split('-');
+            const names = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+            return `${names[parseInt(m) - 1]} ${y}`;
+          };
+          const rangeLabel = `${formatRangeMonth(firstMonth)} – ${formatRangeMonth(lastMonth)} (${monthly.length} months)`;
 
           // Format month labels
           const monthLabels = monthly.map(m => {
@@ -115,6 +141,32 @@ function AnalysisTab({ historicalData, historicalLoading, historicalError, analy
                 ? `Real payback tracking from ${new Date(purchaseDate).toLocaleDateString('en-AU', { month: 'short', year: 'numeric' })} — ${cfg.payType === "finance" ? `${fmt(monthlyPmt)}/mo${financeOverride ? ` (${financeOverride.name})` : ` over ${cfg.financeTerm}yr at ${cfg.financeRate}%`}` : `${fmt(effectiveNetCost)} paid upfront`} — ${monthsSincePurchase} months of data`
                 : `What-if analysis from ${new Date(purchaseDate).toLocaleDateString('en-AU', { month: 'short', year: 'numeric' })} — change install date in header`
               }
+            </div>
+
+            {/* Date Range Filter + Live Data Indicator */}
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px", flexWrap: "wrap" }}>
+              <div style={{ display: "flex", gap: "4px" }}>
+                {[
+                  { key: '6mo', label: 'Last 6mo' },
+                  { key: '12mo', label: 'Last 12mo' },
+                  { key: 'all', label: 'All Time' },
+                ].map(r => (
+                  <button key={r.key} onClick={() => setDateRange(r.key)}
+                    style={{ padding: "4px 12px", borderRadius: "14px", border: dateRange === r.key ? "1px solid #38bdf8" : "1px solid #334155",
+                      background: dateRange === r.key ? "rgba(56,189,248,0.15)" : "transparent",
+                      color: dateRange === r.key ? "#38bdf8" : "#64748b", fontSize: "11px", fontWeight: 600, cursor: "pointer", transition: "all 0.2s" }}>
+                    {r.label}
+                  </button>
+                ))}
+              </div>
+              <div style={{ fontSize: "11px", color: "#475569", marginLeft: "auto" }}>
+                {rangeLabel}
+              </div>
+              {liveDataLoaded && (
+                <div style={{ fontSize: "10px", color: "#34d399", padding: "3px 8px", borderRadius: "10px", background: "rgba(52,211,153,0.1)", border: "1px solid rgba(52,211,153,0.2)" }}>
+                  Live data merged — {liveMonthCount} months total
+                </div>
+              )}
             </div>
 
             {/* Summary Stats */}
