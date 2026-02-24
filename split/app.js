@@ -57,6 +57,18 @@ function BatteryROI() {
   const [liveDataLoaded, setLiveDataLoaded] = useState(false);
   const [liveMonthCount, setLiveMonthCount] = useState(0);
 
+  // SA Grid market data state
+  const [gridData, setGridData] = useState(null);
+  const [gridLoading, setGridLoading] = useState(false);
+  const [gridError, setGridError] = useState(null);
+
+  // SA Grid history state
+  const [gridHistory, setGridHistory] = useState(null);
+  const [gridHistoryLoading, setGridHistoryLoading] = useState(false);
+  const [gridDayData, setGridDayData] = useState(null);
+  const [gridDayLoading, setGridDayLoading] = useState(false);
+  const [selectedGridDay, setSelectedGridDay] = useState(null);
+
   // Finance scenario override (from FinanceCalculator)
   const [financeOverride, setFinanceOverride] = useState(null);
 
@@ -253,6 +265,68 @@ function BatteryROI() {
       })();
     }
   }, [tab]);
+
+  /* Fetch SA Grid data when Grid tab is accessed */
+  const fetchGridData = useCallback(async () => {
+    setGridLoading(true);
+    setGridError(null);
+    try {
+      const resp = await fetch(`${SOLAR_API_URL}/grid-data`);
+      if (resp.ok) {
+        setGridData(await resp.json());
+      } else {
+        const err = await resp.json().catch(() => ({}));
+        setGridError(err.error || `API returned ${resp.status}`);
+      }
+    } catch (e) {
+      setGridError(e.message);
+    } finally {
+      setGridLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (tab === 5 && !gridData && !gridLoading) {
+      fetchGridData();
+    }
+  }, [tab, gridData, gridLoading, fetchGridData]);
+
+  /* Fetch SA Grid price history when Grid tab is accessed */
+  const fetchGridHistory = useCallback(async () => {
+    setGridHistoryLoading(true);
+    try {
+      const resp = await fetch(`${SOLAR_API_URL}/grid-history`);
+      if (resp.ok) {
+        setGridHistory(await resp.json());
+      }
+    } catch (e) {
+      console.warn('Grid history fetch failed:', e);
+    } finally {
+      setGridHistoryLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (tab === 5 && !gridHistory && !gridHistoryLoading) {
+      fetchGridHistory();
+    }
+  }, [tab, gridHistory, gridHistoryLoading, fetchGridHistory]);
+
+  /* Fetch 5-min detail for a selected grid day */
+  const fetchGridDay = useCallback(async (date) => {
+    setSelectedGridDay(date);
+    setGridDayLoading(true);
+    try {
+      const resp = await fetch(`${SOLAR_API_URL}/grid-day?date=${date}`);
+      if (resp.ok) {
+        setGridDayData(await resp.json());
+      }
+    } catch (e) {
+      console.warn('Grid day fetch failed:', e);
+    } finally {
+      setGridDayLoading(false);
+    }
+  }, []);
 
   /* Export/Import helpers */
   const exportData = () => {
@@ -671,6 +745,17 @@ function BatteryROI() {
             <div style={{ fontSize: "13px", fontWeight: 600, color: "#fb923c" }}>{solarLive.inverter_temp || '0'}°C</div>
             <div style={{ fontSize: "10px", color: "#64748b" }}>Temp</div>
           </div>
+          {gridData?.current?.price_mwh != null && (() => {
+            const ckwh = gridData.current.price_mwh / 10;
+            return (
+              <div style={{ textAlign: "center", cursor: "pointer" }} onClick={(e) => { e.stopPropagation(); setTab(5); }}>
+                <div style={{ fontSize: "13px", fontWeight: 600, color: ckwh < 5 ? "#34d399" : ckwh < 15 ? "#fbbf24" : "#f87171" }}>
+                  {ckwh.toFixed(1)}¢/kWh
+                </div>
+                <div style={{ fontSize: "10px", color: "#64748b" }}>Grid</div>
+              </div>
+            );
+          })()}
           <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
             <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#34d399", animation: "pulse 2s infinite" }}></span>
             <span style={{ fontSize: "10px", color: "#34d399" }}>LIVE</span>
@@ -679,7 +764,7 @@ function BatteryROI() {
       )}
 
       <div style={S.tabs}>
-        {["⚙️ Setup", "💰 Finance", "📊 Performance", "📈 Forecast", "☀️ Live Solar"].map((t, i) =>
+        {["⚙️ Setup", "💰 Finance", "📊 Performance", "📈 Forecast", "☀️ Live Solar", "⚡ SA Grid"].map((t, i) =>
           <button key={i} style={S.tab(tab === i)} onClick={() => setTab(i)}>{t}</button>
         )}
       </div>
@@ -756,6 +841,17 @@ function BatteryROI() {
           providerImportText={providerImportText} setProviderImportText={setProviderImportText}
           providerImportStatus={providerImportStatus} setProviderImportStatus={setProviderImportStatus}
           fmt={fmt} fmt2={fmt2} pct={pct} MO={MO} S={S}
+        />}
+
+        {/* ═══ TAB 5: SA GRID ═══ */}
+        {tab === 5 && <GridTab
+          gridData={gridData} gridLoading={gridLoading} gridError={gridError}
+          gridRefresh={fetchGridData}
+          gridHistory={gridHistory} gridHistoryLoading={gridHistoryLoading}
+          gridDayData={gridDayData} gridDayLoading={gridDayLoading}
+          selectedGridDay={selectedGridDay} fetchGridDay={fetchGridDay}
+          cfg={cfg} rateSets={rateSets} solarLive={solarLive}
+          fmt={fmt} fmt2={fmt2} S={S}
         />}
 
       </div>

@@ -23,6 +23,7 @@ tab_setup = read('tab-setup.js')
 tab_forecast = read('tab-forecast.js')
 tab_analysis = read('tab-analysis.js')
 tab_solar = read('tab-solar.js')
+tab_grid = read('tab-grid.js')
 app_js = read('app.js')
 
 html = f'''<!DOCTYPE html>
@@ -54,6 +55,8 @@ html = f'''<!DOCTYPE html>
 {tab_analysis}
 
 {tab_solar}
+
+{tab_grid}
 
 {app_js}
 </script>
