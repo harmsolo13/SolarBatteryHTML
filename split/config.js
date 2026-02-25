@@ -38,6 +38,12 @@ const WEATHER_SOLAR_CORRELATION = {
 const SOLAR_API_URL = (window.location.port === '5000') ? '/api/solar' : 'http://192.168.68.60:5000/api/solar';
 const SOLAR_POLL_INTERVAL = 30000; // 30 seconds
 
+// Local date helper — toISOString() uses UTC which gives yesterday in ACDT before 10:30am
+function localDateStr(d) {
+  var dt = d || new Date();
+  return dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0') + '-' + String(dt.getDate()).padStart(2, '0');
+}
+
 // Home Assistant Configuration
 const HA_CONFIG = {
   url: 'http://192.168.68.60:8123',

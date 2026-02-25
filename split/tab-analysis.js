@@ -708,7 +708,7 @@ function AnalysisTab({ historicalData, historicalLoading, historicalError, analy
                   />
                   <button
                     onClick={() => {
-                      const today = new Date().toISOString().split('T')[0];
+                      const today = localDateStr();
                       const dr = historicalData?.daily_results;
                       if (dr && dr.length > 0) {
                         const lastDate = dr[dr.length - 1].date;

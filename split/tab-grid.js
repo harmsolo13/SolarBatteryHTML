@@ -66,11 +66,26 @@ function GridTab({ gridData, gridLoading, gridError, gridRefresh,
   var showGeneration = showGenState[0];
   var setShowGeneration = showGenState[1];
 
+  var rangeFromState = React.useState('');
+  var rangeFrom = rangeFromState[0];
+  var setRangeFrom = rangeFromState[1];
+
+  var rangeToState = React.useState('');
+  var rangeTo = rangeToState[0];
+  var setRangeTo = rangeToState[1];
+
   // ALL hooks must be called before any early returns (React rules of hooks)
   var d = gridData || {};
   var latestRate = rateSets.length > 0 ? rateSets[rateSets.length - 1] : null;
   var fitCkwh = latestRate ? latestRate.feedIn * 100 : 5.5;
-  var historyDays = gridHistory ? gridHistory.days || [] : [];
+  var allHistoryDays = gridHistory ? gridHistory.days || [] : [];
+
+  // Filter by selected date range
+  var historyDays = allHistoryDays.filter(function(day) {
+    if (rangeFrom && day.date < rangeFrom) return false;
+    if (rangeTo && day.date > rangeTo) return false;
+    return true;
+  });
 
   var fitMonthlyAnalysis = React.useMemo(function() {
     if (historyDays.length === 0) return [];
@@ -94,7 +109,7 @@ function GridTab({ gridData, gridLoading, gridError, gridRefresh,
         extraPerKwh: avgAbove > fitCkwh ? avgAbove - fitCkwh : 0,
       };
     });
-  }, [historyDays, fitCkwh]);
+  }, [historyDays, fitCkwh, rangeFrom, rangeTo]);
 
   var fitWeeklyAnalysis = React.useMemo(function() {
     if (historyDays.length === 0) return [];
@@ -111,7 +126,8 @@ function GridTab({ gridData, gridLoading, gridError, gridRefresh,
       if (day.avg_price > fitCkwh) weeks[wk].aboveFit.push(day);
     });
     var allWeeks = Object.entries(weeks).sort(function(a, b) { return a[0].localeCompare(b[0]); });
-    return allWeeks.slice(-12).map(function(entry) {
+    var showWeeks = (rangeFrom || rangeTo) ? allWeeks : allWeeks.slice(-12);
+    return showWeeks.map(function(entry) {
       var data = entry[1];
       var avgAll = data.prices.reduce(function(s, p) { return s + p; }, 0) / data.prices.length;
       var avgAbove = data.aboveFit.length > 0 ? data.aboveFit.reduce(function(s, dd) { return s + dd.avg_price; }, 0) / data.aboveFit.length : 0;
@@ -120,10 +136,11 @@ function GridTab({ gridData, gridLoading, gridError, gridRefresh,
         totalDays: data.days.length, daysAbove: data.aboveFit.length,
         pctAbove: Math.round(data.aboveFit.length / data.days.length * 100),
         avgPrice: avgAll, avgAbovePrice: avgAbove,
+        peakPrice: Math.max.apply(null, data.prices),
         extraPerKwh: avgAbove > fitCkwh ? avgAbove - fitCkwh : 0,
       };
     });
-  }, [historyDays, fitCkwh]);
+  }, [historyDays, fitCkwh, rangeFrom, rangeTo]);
 
   // Early returns AFTER all hooks
   if (gridLoading && !gridData && !gridHistory) {
@@ -173,7 +190,11 @@ function GridTab({ gridData, gridLoading, gridError, gridRefresh,
     { label: 'Feed-In', ckwh: fitCkwh, color: '#34d399', isRetail: false },
   ];
 
-  var historyDateRange = gridHistory ? gridHistory.date_range || {} : {};
+  var fullDateRange = gridHistory ? gridHistory.date_range || {} : {};
+  var historyDateRange = {
+    from: rangeFrom || fullDateRange.from || '',
+    to: rangeTo || fullDateRange.to || ''
+  };
   var periodAvgCkwh = historyDays.length > 0
     ? historyDays.reduce(function(s, dd) { return s + dd.avg_price; }, 0) / historyDays.length : null;
 
@@ -299,7 +320,7 @@ function GridTab({ gridData, gridLoading, gridError, gridRefresh,
         </div>
 
         <div style={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: "10px", padding: "14px 16px" }}>
-          <div style={{ fontSize: "10px", color: "#64748b", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.5px" }}>{historyDateRange.from ? "Since " + historyDateRange.from.substring(0, 7) : "Period Avg"}</div>
+          <div style={{ fontSize: "10px", color: "#64748b", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.5px" }}>{(rangeFrom || rangeTo) ? "Selected Range" : "All Time"}</div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
             <div>
               <div style={{ fontSize: "28px", fontWeight: 800, color: "#a78bfa", lineHeight: 1 }}>{periodAvgCkwh != null ? periodAvgCkwh.toFixed(1) + "¢" : "—"}</div>
@@ -319,16 +340,52 @@ function GridTab({ gridData, gridLoading, gridError, gridRefresh,
       </div>
 
       {/* Daily Price History Chart */}
-      {historyChartData.length > 0 && (
+      {(historyChartData.length > 0 || allHistoryDays.length > 0) && (
         <div style={S.card}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-            <div>
-              <div style={{ fontSize: "13px", fontWeight: 600, color: "#e2e8f0" }}>Daily Wholesale Price History (¢/kWh)</div>
-              <div style={{ fontSize: "10px", color: "#64748b" }}>{historyDays.length + " days · " + historyDateRange.from + " to " + historyDateRange.to}</div>
+          <div style={{ marginBottom: "12px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+              <div>
+                <div style={{ fontSize: "13px", fontWeight: 600, color: "#e2e8f0" }}>Daily Wholesale Price History (¢/kWh)</div>
+                <div style={{ fontSize: "10px", color: "#64748b" }}>{historyDays.length + " days" + (historyDays.length < allHistoryDays.length ? " of " + allHistoryDays.length : "") + " · " + historyDateRange.from + " to " + historyDateRange.to}</div>
+              </div>
+              {selectedGridDay && (
+                <button onClick={function() { fetchGridDay(null); }} style={{ padding: "4px 10px", background: "#1e3a5f", border: "1px solid #334155", borderRadius: "5px", color: "#e2e8f0", cursor: "pointer", fontSize: "11px" }}>Clear Selection</button>
+              )}
             </div>
-            {selectedGridDay && (
-              <button onClick={function() { fetchGridDay(null); }} style={{ padding: "4px 10px", background: "#1e3a5f", border: "1px solid #334155", borderRadius: "5px", color: "#e2e8f0", cursor: "pointer", fontSize: "11px" }}>Clear</button>
-            )}
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+              <input type="date" value={rangeFrom} onChange={function(e) { setRangeFrom(e.target.value); }}
+                min={fullDateRange.from || ''} max={rangeTo || fullDateRange.to || ''}
+                style={{ padding: "4px 8px", background: "#0f172a", border: "1px solid #334155", borderRadius: "5px", color: "#e2e8f0", fontSize: "11px", colorScheme: "dark" }} />
+              <span style={{ fontSize: "11px", color: "#64748b" }}>to</span>
+              <input type="date" value={rangeTo} onChange={function(e) { setRangeTo(e.target.value); }}
+                min={rangeFrom || fullDateRange.from || ''} max={fullDateRange.to || ''}
+                style={{ padding: "4px 8px", background: "#0f172a", border: "1px solid #334155", borderRadius: "5px", color: "#e2e8f0", fontSize: "11px", colorScheme: "dark" }} />
+              <div style={{ display: "flex", gap: "4px", marginLeft: "4px" }}>
+                {[
+                  { label: "1M", days: 30 },
+                  { label: "3M", days: 90 },
+                  { label: "6M", days: 180 },
+                  { label: "1Y", days: 365 },
+                  { label: "All", days: 0 }
+                ].map(function(btn) {
+                  var isActive = false;
+                  if (btn.days === 0) {
+                    isActive = !rangeFrom && !rangeTo;
+                  } else {
+                    var cutoff = new Date();
+                    cutoff.setDate(cutoff.getDate() - btn.days);
+                    var cutoffStr = cutoff.toISOString().substring(0, 10);
+                    isActive = rangeFrom === cutoffStr && !rangeTo;
+                  }
+                  return (
+                    <button key={btn.label} onClick={function() {
+                      if (btn.days === 0) { setRangeFrom(''); setRangeTo(''); }
+                      else { var c = new Date(); c.setDate(c.getDate() - btn.days); setRangeFrom(c.toISOString().substring(0, 10)); setRangeTo(''); }
+                    }} style={{ padding: "3px 8px", background: isActive ? "#1e3a5f" : "#0f172a", border: "1px solid " + (isActive ? "#38bdf8" : "#334155"), borderRadius: "4px", color: isActive ? "#38bdf8" : "#94a3b8", cursor: "pointer", fontSize: "10px", fontWeight: isActive ? 600 : 400 }}>{btn.label}</button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
           <ResponsiveContainer width="100%" height={320}>
             <LineChart data={historyChartData} margin={{ top: 5, right: 30, bottom: 5, left: 10 }}
@@ -419,7 +476,7 @@ function GridTab({ gridData, gridLoading, gridError, gridRefresh,
             </table>
           </div>
 
-          <div style={{ fontSize: "12px", fontWeight: 600, color: "#94a3b8", marginBottom: "8px" }}>Weekly Breakdown (Last 12 Weeks)</div>
+          <div style={{ fontSize: "12px", fontWeight: 600, color: "#94a3b8", marginBottom: "8px" }}>{"Weekly Breakdown" + ((rangeFrom || rangeTo) ? "" : " (Last 12 Weeks)")}</div>
           <div style={{ background: "#0f172a", borderRadius: "8px", border: "1px solid #1e3a5f", overflow: "hidden", marginBottom: "10px" }}>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
@@ -429,6 +486,7 @@ function GridTab({ gridData, gridLoading, gridError, gridRefresh,
                   <th style={fitTh}>Above FIT</th>
                   <th style={fitThWide}>% Above</th>
                   <th style={fitTh}>Avg Wholesale</th>
+                  <th style={fitTh}>Peak</th>
                   <th style={fitTh}>Avg When Above</th>
                   <th style={fitTh}>Extra ¢/kWh</th>
                 </tr>
@@ -442,6 +500,7 @@ function GridTab({ gridData, gridLoading, gridError, gridRefresh,
                       <td style={{ padding: "6px 10px", fontSize: "11px", borderBottom: "1px solid #1e293b", textAlign: "right", color: w.daysAbove > 0 ? "#34d399" : "#64748b", fontWeight: 600 }}>{w.daysAbove}</td>
                       <td style={{ padding: "6px 10px", fontSize: "11px", borderBottom: "1px solid #1e293b", textAlign: "right" }}><PctBar pct={w.pctAbove} /></td>
                       <td style={{ padding: "6px 10px", fontSize: "11px", borderBottom: "1px solid #1e293b", textAlign: "right", color: "#38bdf8" }}>{w.avgPrice.toFixed(1) + "¢"}</td>
+                      <td style={{ padding: "6px 10px", fontSize: "11px", borderBottom: "1px solid #1e293b", textAlign: "right", color: w.peakPrice > fitCkwh ? "#f87171" : "#94a3b8", fontWeight: 600 }}>{w.peakPrice.toFixed(1) + "¢"}</td>
                       <td style={{ padding: "6px 10px", fontSize: "11px", borderBottom: "1px solid #1e293b", textAlign: "right", color: w.avgAbovePrice > 0 ? "#fbbf24" : "#64748b" }}>{w.avgAbovePrice > 0 ? w.avgAbovePrice.toFixed(1) + "¢" : "—"}</td>
                       <td style={{ padding: "6px 10px", fontSize: "11px", borderBottom: "1px solid #1e293b", textAlign: "right", color: w.extraPerKwh > 0 ? "#34d399" : "#64748b", fontWeight: 600 }}>{w.extraPerKwh > 0 ? "+" + w.extraPerKwh.toFixed(1) + "¢" : "—"}</td>
                     </tr>

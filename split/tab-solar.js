@@ -110,7 +110,7 @@ function LiveSolarTab({ solarLive, solarStats, solarDaily, setSolarDaily, solarM
           {/* Forecast vs Actual Rating — prefers Open-Meteo, falls back to BOM */}
           {(() => {
             // Prefer Open-Meteo data, fall back to legacy forecastData
-            const todayStr = new Date().toISOString().split('T')[0];
+            const todayStr = localDateStr();
             const meteoToday = openMeteoForecast?.find(d => d.date === todayStr);
             const legacyToday = forecastData?.find(d => d.date === todayStr) || forecastData?.[0];
             const todayPred = meteoToday || legacyToday;
@@ -277,7 +277,7 @@ function LiveSolarTab({ solarLive, solarStats, solarDaily, setSolarDaily, solarM
             const _month = new Date().getMonth();
             const _sunrise = [6.0, 6.5, 7.0, 6.5, 7.0, 7.2, 7.0, 6.5, 6.0, 5.5, 5.5, 5.8][_month];
             const _sunset = [20.5, 20.0, 19.0, 17.5, 17.0, 17.0, 17.2, 17.8, 18.5, 19.2, 20.0, 20.5][_month];
-            const _todayStr = new Date().toISOString().split('T')[0];
+            const _todayStr = localDateStr();
             // Prefer Open-Meteo, fall back to legacy BOM forecastData
             const _meteoToday = openMeteoForecast?.find(d => d.date === _todayStr);
             const _todayPred = _meteoToday || forecastData?.find(d => d.date === _todayStr) || forecastData?.[0];

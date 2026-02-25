@@ -103,7 +103,7 @@ function BatteryROI() {
       if (HISTORICAL_ROI_DATA && HISTORICAL_ROI_DATA.monthly_results) {
         setHistoricalData(HISTORICAL_ROI_DATA);
         if (!selectedDate && HISTORICAL_ROI_DATA.daily_results && HISTORICAL_ROI_DATA.daily_results.length > 0) {
-          const today = new Date().toISOString().split('T')[0];
+          const today = localDateStr();
           const dr = HISTORICAL_ROI_DATA.daily_results;
           const lastDate = dr[dr.length - 1].date;
           setSelectedDate(today <= lastDate ? today : lastDate);
@@ -125,7 +125,7 @@ function BatteryROI() {
             // Update selectedDate to most recent if current is beyond embedded range
             const dr = merged.daily_results;
             if (dr.length > 0) {
-              const today = new Date().toISOString().split('T')[0];
+              const today = localDateStr();
               const lastDate = dr[dr.length - 1].date;
               setSelectedDate(prev => {
                 if (!prev || prev > lastDate) return lastDate;
@@ -156,7 +156,7 @@ function BatteryROI() {
           // Also refresh today's power curve when on the solar tab
           if (tab === 4) {
             try {
-              const todayResp = await fetch(`${SOLAR_API_URL}/today?date=${new Date().toISOString().split('T')[0]}`);
+              const todayResp = await fetch(`${SOLAR_API_URL}/today?date=${localDateStr()}`);
               if (todayResp.ok) { const t = await todayResp.json(); setSolarToday(t.readings || []); }
             } catch {}
           }
@@ -177,7 +177,7 @@ function BatteryROI() {
     if (tab === 4) {
       const loadSolarData = async () => {
         try {
-          const today = new Date().toISOString().split('T')[0];
+          const today = localDateStr();
           const [statsResp, dailyResp, monthlyResp, hourlyResp, todayResp] = await Promise.all([
             fetch(`${SOLAR_API_URL}/stats`),
             fetch(`${SOLAR_API_URL}/daily?days=90`),
@@ -195,7 +195,7 @@ function BatteryROI() {
             const wxResp = await fetch(`${SOLAR_API_URL}/weather`);
             if (wxResp.ok) {
               const wxData = await wxResp.json();
-              const todayStr = new Date().toISOString().split('T')[0];
+              const todayStr = localDateStr();
               const todayForecast = wxData.forecast?.find(d => d.date === todayStr);
               setWeatherToday({
                 current: wxData.current,
@@ -334,7 +334,7 @@ function BatteryROI() {
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = `battery-roi-data-${new Date().toISOString().split("T")[0]}.json`;
+    a.href = url; a.download = `battery-roi-data-${localDateStr()}.json`;
     a.click(); URL.revokeObjectURL(url);
   };
 
@@ -413,7 +413,7 @@ function BatteryROI() {
     const last = rateSets[rateSets.length - 1];
     const d = new Date(last.from);
     d.setMonth(d.getMonth() + 6);
-    const ds = d.toISOString().split("T")[0];
+    const ds = localDateStr(d);
     setRateSets(p => [...p, makeRateSet(ds, `Rate period ${p.length + 1}`, {
       sponge: last.sponge, peak: last.peak, offPk: last.offPk,
       feedIn: last.feedIn, supply: last.supply, disc: last.disc, gst: last.gst,
@@ -475,7 +475,7 @@ function BatteryROI() {
     /* Auto-advance to next month */
     const next = new Date(d);
     next.setMonth(next.getMonth() + 1);
-    setDraft({ billFrom: next.toISOString().split("T")[0], days: MD[next.getMonth()].toString(), sponge: "", peak: "", offPk: "", feedIn: "" });
+    setDraft({ billFrom: localDateStr(next), days: MD[next.getMonth()].toString(), sponge: "", peak: "", offPk: "", feedIn: "" });
     setEditingId(null);
   };
 
@@ -508,7 +508,7 @@ function BatteryROI() {
       if (d.getMonth() !== i) d.setDate(0);
       newEntries.push({
         id: Date.now() + Math.random() + i,
-        billFrom: d.toISOString().split("T")[0], month: i, year: d.getFullYear(),
+        billFrom: localDateStr(d), month: i, year: d.getFullYear(),
         days: MD[i].toString(),
         sponge: (Math.round(base.sponge * (SEA.sponge[i] / SEA.sponge[srcMi]) * 10) / 10).toString(),
         peak: (Math.round(base.peak * (SEA.peak[i] / SEA.peak[srcMi]) * 10) / 10).toString(),
