@@ -34,8 +34,8 @@ const WEATHER_SOLAR_CORRELATION = {
    ═══════════════════════════════════════════════════════════════════════ */
 
 // Solar API Configuration (Nexus server with Solax collector)
-// Use relative path when served from Nexus, absolute when opened as file://
-const SOLAR_API_URL = (window.location.port === '5000') ? '/api/solar' : 'http://192.168.68.60:5000/api/solar';
+// Use relative path when served from any web server (local or Cloudflare tunnel), absolute only for file://
+const SOLAR_API_URL = (window.location.protocol === 'file:') ? 'http://192.168.68.60:5000/api/solar' : '/api/solar';
 const SOLAR_POLL_INTERVAL = 30000; // 30 seconds
 
 // Local date helper — toISOString() uses UTC which gives yesterday in ACDT before 10:30am
