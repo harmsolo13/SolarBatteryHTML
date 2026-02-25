@@ -91,10 +91,11 @@ function LiveSolarTab({ solarLive, solarStats, solarDaily, setSolarDaily, solarM
               <div style={S.card}>
                 <div style={{ fontSize: "13px", fontWeight: 600, color: "#e2e8f0", marginBottom: "8px" }}>System Output</div>
                 <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                  <div style={{ flex: 1 }}>
+                  <div style={{ flex: 1, position: "relative" }}>
                     <div style={{ background: "#1e293b", borderRadius: "8px", height: "24px", overflow: "hidden" }}>
                       <div style={{ width: `${pct}%`, height: "100%", background: `linear-gradient(90deg, ${barColor}88, ${barColor})`, borderRadius: "8px", transition: "width 1s ease" }}></div>
                     </div>
+                    <div style={{ position: "absolute", top: "50%", left: `${Math.max(pct, 3)}%`, transform: "translateY(-50%)", fontSize: "11px", fontWeight: 700, color: "#fff", textShadow: "0 1px 3px rgba(0,0,0,0.8)", paddingLeft: "6px", whiteSpace: "nowrap" }}>{currentPV.toLocaleString()}W</div>
                   </div>
                   <div style={{ fontSize: "14px", fontWeight: 700, color: barColor, minWidth: "80px", textAlign: "right" }}>{pct.toFixed(0)}% capacity</div>
                 </div>

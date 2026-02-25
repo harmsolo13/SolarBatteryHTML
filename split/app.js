@@ -747,12 +747,27 @@ function BatteryROI() {
           </div>
           {gridData?.current?.price_mwh != null && (() => {
             const ckwh = gridData.current.price_mwh / 10;
+            const pvW = solarLive.total_pv_power || 0;
+            const valuePerHr = pvW > 0 ? (pvW / 1000) * (ckwh / 100) : null;
             return (
               <div style={{ textAlign: "center", cursor: "pointer" }} onClick={(e) => { e.stopPropagation(); setTab(5); }}>
                 <div style={{ fontSize: "13px", fontWeight: 600, color: ckwh < 5 ? "#34d399" : ckwh < 15 ? "#fbbf24" : "#f87171" }}>
-                  {ckwh.toFixed(1)}¢/kWh
+                  {ckwh.toFixed(1)}¢
                 </div>
-                <div style={{ fontSize: "10px", color: "#64748b" }}>Grid</div>
+                <div style={{ fontSize: "10px", color: "#64748b" }}>Spot</div>
+              </div>
+            );
+          })()}
+          {gridData?.current?.price_mwh != null && solarLive.total_pv_power > 0 && (() => {
+            const ckwh = gridData.current.price_mwh / 10;
+            const pvKw = solarLive.total_pv_power / 1000;
+            const valuePerHr = pvKw * (ckwh / 100);
+            return (
+              <div style={{ textAlign: "center", cursor: "pointer" }} onClick={(e) => { e.stopPropagation(); setTab(5); }}>
+                <div style={{ fontSize: "13px", fontWeight: 600, color: "#fbbf24" }}>
+                  ${valuePerHr.toFixed(2)}/hr
+                </div>
+                <div style={{ fontSize: "10px", color: "#64748b" }}>Spot Value</div>
               </div>
             );
           })()}
