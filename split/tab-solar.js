@@ -1,15 +1,15 @@
 /* Tab 4: Live Solar — Real-time inverter data, weather, daily costs */
 
-function LiveSolarTab({ solarLive, solarStats, solarDaily, setSolarDaily, solarMonthly, solarHourly, solarToday, solarConnected, weatherToday, forecastData, openMeteoForecast, cfg, blendedRates, rateSets, netCost, showProviderImport, setShowProviderImport, providerImportText, setProviderImportText, providerImportStatus, setProviderImportStatus, fmt, fmt2, pct, MO, S }) {
+function LiveSolarTab({ solarLive, solarStats, solarDaily, setSolarDaily, solarMonthly, solarHourly, solarToday, solarConnected, weatherToday, forecastData, openMeteoForecast, refreshOpenMeteo, openMeteoLoading, cfg, blendedRates, rateSets, netCost, showProviderImport, setShowProviderImport, providerImportText, setProviderImportText, providerImportStatus, setProviderImportStatus, fmt, fmt2, pct, MO, S }) {
   return (<>
-        <div style={{ fontSize: "14px", fontWeight: 600, color: "#e2e8f0", marginBottom: "4px" }}>Live Solar Dashboard</div>
-        <div style={{ fontSize: "12px", color: "#475569", marginBottom: "16px" }}>
+        <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--text)", marginBottom: "4px" }}>Live Solar Dashboard</div>
+        <div style={{ fontSize: "12px", color: "var(--text-dim)", marginBottom: "16px" }}>
           Real-time data from Solax {solarLive?.type || 'AL_SI4'} inverter {solarStats ? `· Collecting since ${solarStats.first_date}` : ''}
         </div>
 
         {!solarConnected ? (
           <div style={S.card}>
-            <div style={{ textAlign: "center", padding: "40px", color: "#64748b" }}>
+            <div style={{ textAlign: "center", padding: "40px", color: "var(--text-muted)" }}>
               <div style={{ fontSize: "40px", marginBottom: "12px" }}>📡</div>
               <div style={{ fontSize: "16px", fontWeight: 600, marginBottom: "6px" }}>Connecting to Inverter...</div>
               <div style={{ fontSize: "12px" }}>Make sure the Solax collector service is running and the Nexus server is accessible.</div>
@@ -32,10 +32,10 @@ function LiveSolarTab({ solarLive, solarStats, solarDaily, setSolarDaily, solarM
               { label: "Inverter Temp", value: `${solarLive?.inverter_temp || 0}°C`, color: solarLive?.inverter_temp > 60 ? "#f87171" : "#34d399", icon: "🌡️" },
               { label: "Status", value: solarLive?.status == 2 ? "Generating" : solarLive?.status == 0 ? "Standby" : `Code ${solarLive?.status}`, color: solarLive?.status == 2 ? "#34d399" : "#fbbf24", icon: "✅" },
             ].map((s, i) => (
-              <div key={i} style={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: "8px", padding: "12px", textAlign: "center" }}>
+              <div key={i} style={{ background: "var(--bg-input)", border: "1px solid var(--border)", borderRadius: "8px", padding: "12px", textAlign: "center" }}>
                 <div style={{ fontSize: "16px", marginBottom: "4px" }}>{s.icon}</div>
                 <div style={{ fontSize: "18px", fontWeight: 700, color: s.color }}>{s.value}</div>
-                <div style={{ fontSize: "10px", color: "#64748b", marginTop: "2px" }}>{s.label}</div>
+                <div style={{ fontSize: "10px", color: "var(--text-muted)", marginTop: "2px" }}>{s.label}</div>
               </div>
             ))}
           </div>
@@ -54,28 +54,28 @@ function LiveSolarTab({ solarLive, solarStats, solarDaily, setSolarDaily, solarM
             const todayValue = selfConsumedValue + exportedValue;
             const dailyCostTarget = netCost / (cfg.forecastYears * 365); // payback target per day based on forecast period
             return (
-              <div style={{ background: "linear-gradient(135deg, rgba(16,185,129,0.08), rgba(245,158,11,0.08))", border: "1px solid #1e3a5f", borderRadius: "10px", padding: "16px", marginBottom: "16px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
+              <div style={{ background: "linear-gradient(135deg, rgba(16,185,129,0.08), rgba(245,158,11,0.08))", border: "1px solid var(--border-accent)", borderRadius: "10px", padding: "16px", marginBottom: "16px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
                 <div>
-                  <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "4px" }}>Today's Estimated Value</div>
+                  <div style={{ fontSize: "12px", color: "var(--text-muted)", marginBottom: "4px" }}>Today's Estimated Value</div>
                   <div style={{ fontSize: "28px", fontWeight: 700, color: "#34d399" }}>{fmt2(todayValue)}</div>
-                  <div style={{ fontSize: "10px", color: "#475569" }}>{todayKwh.toFixed(1)} kWh × est. rates</div>
+                  <div style={{ fontSize: "10px", color: "var(--text-dim)" }}>{todayKwh.toFixed(1)} kWh × est. rates</div>
                 </div>
                 <div style={{ textAlign: "center" }}>
-                  <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "4px" }}>Self-Consumed</div>
+                  <div style={{ fontSize: "12px", color: "var(--text-muted)", marginBottom: "4px" }}>Self-Consumed</div>
                   <div style={{ fontSize: "20px", fontWeight: 700, color: "#fbbf24" }}>{fmt2(selfConsumedValue)}</div>
-                  <div style={{ fontSize: "10px", color: "#475569" }}>{(todayKwh * selfConsumptionPct).toFixed(1)} kWh @ avg {fmt2(avgImportRate)}/kWh</div>
+                  <div style={{ fontSize: "10px", color: "var(--text-dim)" }}>{(todayKwh * selfConsumptionPct).toFixed(1)} kWh @ avg {fmt2(avgImportRate)}/kWh</div>
                 </div>
                 <div style={{ textAlign: "center" }}>
-                  <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "4px" }}>Exported</div>
+                  <div style={{ fontSize: "12px", color: "var(--text-muted)", marginBottom: "4px" }}>Exported</div>
                   <div style={{ fontSize: "20px", fontWeight: 700, color: "#38bdf8" }}>{fmt2(exportedValue)}</div>
-                  <div style={{ fontSize: "10px", color: "#475569" }}>{(todayKwh * (1 - selfConsumptionPct)).toFixed(1)} kWh @ {fmt2(feedInRate)}/kWh</div>
+                  <div style={{ fontSize: "10px", color: "var(--text-dim)" }}>{(todayKwh * (1 - selfConsumptionPct)).toFixed(1)} kWh @ {fmt2(feedInRate)}/kWh</div>
                 </div>
                 <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "4px" }}>Payback Progress</div>
+                  <div style={{ fontSize: "12px", color: "var(--text-muted)", marginBottom: "4px" }}>Payback Progress</div>
                   <div style={{ fontSize: "20px", fontWeight: 700, color: todayValue >= dailyCostTarget ? "#34d399" : "#fb923c" }}>
                     {todayValue >= dailyCostTarget ? "On Track" : "Below Target"}
                   </div>
-                  <div style={{ fontSize: "10px", color: "#475569" }}>Need {fmt2(dailyCostTarget)}/day for {cfg.forecastYears}yr payback</div>
+                  <div style={{ fontSize: "10px", color: "var(--text-dim)" }}>Need {fmt2(dailyCostTarget)}/day for {cfg.forecastYears}yr payback</div>
                 </div>
               </div>
             );
@@ -86,20 +86,20 @@ function LiveSolarTab({ solarLive, solarStats, solarDaily, setSolarDaily, solarM
             const maxPV = (cfg.solarCapacity || 5) * 1000; // Actual solar system capacity
             const currentPV = solarLive?.total_pv_power || 0;
             const pct = Math.min((currentPV / maxPV) * 100, 100);
-            const barColor = pct > 80 ? "#34d399" : pct > 50 ? "#fbbf24" : pct > 20 ? "#fb923c" : "#64748b";
+            const barColor = pct > 80 ? "#34d399" : pct > 50 ? "#fbbf24" : pct > 20 ? "#fb923c" : "var(--text-muted)";
             return (
               <div style={S.card}>
-                <div style={{ fontSize: "13px", fontWeight: 600, color: "#e2e8f0", marginBottom: "8px" }}>System Output</div>
+                <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--text)", marginBottom: "8px" }}>System Output</div>
                 <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                   <div style={{ flex: 1, position: "relative" }}>
-                    <div style={{ background: "#1e293b", borderRadius: "8px", height: "24px", overflow: "hidden" }}>
+                    <div style={{ background: "var(--border)", borderRadius: "8px", height: "24px", overflow: "hidden" }}>
                       <div style={{ width: `${pct}%`, height: "100%", background: `linear-gradient(90deg, ${barColor}88, ${barColor})`, borderRadius: "8px", transition: "width 1s ease" }}></div>
                     </div>
                     <div style={{ position: "absolute", top: "50%", left: `${Math.max(pct, 3)}%`, transform: "translateY(-50%)", fontSize: "11px", fontWeight: 700, color: "#fff", textShadow: "0 1px 3px rgba(0,0,0,0.8)", paddingLeft: "6px", whiteSpace: "nowrap" }}>{currentPV.toLocaleString()}W</div>
                   </div>
                   <div style={{ fontSize: "14px", fontWeight: 700, color: barColor, minWidth: "80px", textAlign: "right" }}>{pct.toFixed(0)}% capacity</div>
                 </div>
-                <div style={{ display: "flex", justifyContent: "space-between", marginTop: "4px", fontSize: "10px", color: "#475569" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginTop: "4px", fontSize: "10px", color: "var(--text-dim)" }}>
                   <span>0W</span>
                   <span>{(maxPV / 2).toLocaleString()}W</span>
                   <span>{maxPV.toLocaleString()}W</span>
@@ -148,7 +148,7 @@ function LiveSolarTab({ solarLive, solarStats, solarDaily, setSolarDaily, solarM
 
             let ratingLabel, ratingColor, ratingIcon;
             if (isBefore6am) {
-              ratingLabel = "Pre-Dawn"; ratingColor = "#475569"; ratingIcon = "🌙";
+              ratingLabel = "Pre-Dawn"; ratingColor = "var(--text-dim)"; ratingIcon = "🌙";
             } else if (accuracy >= 110) {
               ratingLabel = "Exceeding"; ratingColor = "#34d399"; ratingIcon = "🚀";
             } else if (accuracy >= 90) {
@@ -174,51 +174,54 @@ function LiveSolarTab({ solarLive, solarStats, solarDaily, setSolarDaily, solarM
             return (
             <div style={S.card}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-                <div style={{ fontSize: "14px", fontWeight: 700, color: "#e2e8f0" }}>Forecast vs Actual</div>
-                <div style={{ fontSize: "11px", color: "#64748b" }}>{isOpenMeteo ? 'Open-Meteo Radiation Model' : 'BOM Weather Model'}</div>
+                <div style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>Forecast vs Actual</div>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <div style={{ fontSize: "11px", color: "var(--text-muted)" }}>{isOpenMeteo ? 'Open-Meteo Radiation Model' : 'BOM Weather Model'}</div>
+                  <button onClick={refreshOpenMeteo} disabled={openMeteoLoading} style={{ background: "none", border: "1px solid var(--border)", borderRadius: "4px", padding: "2px 8px", fontSize: "11px", color: "var(--text-muted)", cursor: openMeteoLoading ? "wait" : "pointer", display: "flex", alignItems: "center", gap: "4px" }} title="Refresh weather forecast">{openMeteoLoading ? "..." : "\u21BB"}</button>
+                </div>
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px", marginBottom: "14px" }}>
                 {/* Weather condition */}
-                <div style={{ background: "#0a0f1a", borderRadius: "8px", padding: "12px", textAlign: "center", border: "1px solid #1e293b" }}>
+                <div style={{ background: "var(--bg-page)", borderRadius: "8px", padding: "12px", textAlign: "center", border: "1px solid var(--border)" }}>
                   <div style={{ fontSize: "28px", marginBottom: "4px" }}>{getConditionIcon(condition)}</div>
-                  <div style={{ fontSize: "13px", fontWeight: 600, color: "#e2e8f0" }}>{condition.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</div>
+                  <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--text)" }}>{condition.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</div>
                   {currentCondition && currentCondition !== condition && (
-                    <div style={{ fontSize: "10px", color: "#94a3b8", marginTop: "2px" }}>Now: {currentCondition.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</div>
+                    <div style={{ fontSize: "10px", color: "var(--text-secondary)", marginTop: "2px" }}>Now: {currentCondition.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</div>
                   )}
-                  <div style={{ fontSize: "10px", color: "#64748b", marginTop: "2px" }}>Weather: {(weatherMult * 100).toFixed(0)}% · Season: {(seasonalMult * 100).toFixed(0)}%</div>
-                  {todayPred.tempMax && <div style={{ fontSize: "10px", color: "#64748b" }}>{todayPred.tempMax}°/{todayPred.tempMin}° · {todayPred.rainChance || 0}% rain</div>}
+                  <div style={{ fontSize: "10px", color: "var(--text-muted)", marginTop: "2px" }}>Weather: {(weatherMult * 100).toFixed(0)}% · Season: {(seasonalMult * 100).toFixed(0)}%</div>
+                  {todayPred.tempMax && <div style={{ fontSize: "10px", color: "var(--text-muted)" }}>{todayPred.tempMax}°/{todayPred.tempMin}° · {todayPred.rainChance || 0}% rain</div>}
                 </div>
 
                 {/* Predicted vs Actual kWh */}
-                <div style={{ background: "#0a0f1a", borderRadius: "8px", padding: "12px", textAlign: "center", border: "1px solid #1e293b" }}>
-                  <div style={{ fontSize: "10px", color: "#64748b", marginBottom: "6px" }}>Predicted by now</div>
-                  <div style={{ fontSize: "22px", fontWeight: 700, color: "#94a3b8" }}>{predictedByNow.toFixed(1)} kWh</div>
-                  <div style={{ fontSize: "10px", color: "#475569", marginTop: "2px" }}>of {predictedFullDay} kWh full day</div>
-                  <div style={{ fontSize: "10px", color: "#475569" }}>({(expectedFraction * 100).toFixed(0)}% of solar window)</div>
+                <div style={{ background: "var(--bg-page)", borderRadius: "8px", padding: "12px", textAlign: "center", border: "1px solid var(--border)" }}>
+                  <div style={{ fontSize: "10px", color: "var(--text-muted)", marginBottom: "6px" }}>Predicted by now</div>
+                  <div style={{ fontSize: "22px", fontWeight: 700, color: "var(--text-secondary)" }}>{predictedByNow.toFixed(1)} kWh</div>
+                  <div style={{ fontSize: "10px", color: "var(--text-dim)", marginTop: "2px" }}>of {predictedFullDay} kWh full day</div>
+                  <div style={{ fontSize: "10px", color: "var(--text-dim)" }}>({(expectedFraction * 100).toFixed(0)}% of solar window)</div>
                 </div>
 
                 {/* Accuracy rating */}
-                <div style={{ background: "#0a0f1a", borderRadius: "8px", padding: "12px", textAlign: "center", border: `1px solid ${ratingColor}33` }}>
+                <div style={{ background: "var(--bg-page)", borderRadius: "8px", padding: "12px", textAlign: "center", border: `1px solid ${ratingColor}33` }}>
                   <div style={{ fontSize: "22px", marginBottom: "2px" }}>{ratingIcon}</div>
                   <div style={{ fontSize: "18px", fontWeight: 700, color: ratingColor }}>{ratingLabel}</div>
                   {!isBefore6am && <div style={{ fontSize: "22px", fontWeight: 700, color: ratingColor, marginTop: "2px" }}>{accuracy.toFixed(0)}%</div>}
-                  <div style={{ fontSize: "10px", color: "#475569" }}>accuracy score</div>
+                  <div style={{ fontSize: "10px", color: "var(--text-dim)" }}>accuracy score</div>
                 </div>
               </div>
 
               {/* Battery prediction from model */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px", marginBottom: "14px" }}>
-                <div style={{ background: "#0a0f1a", borderRadius: "6px", padding: "8px", textAlign: "center", border: "1px solid #1e293b" }}>
-                  <div style={{ fontSize: "9px", color: "#64748b" }}>Predicted Battery Fill</div>
+                <div style={{ background: "var(--bg-page)", borderRadius: "6px", padding: "8px", textAlign: "center", border: "1px solid var(--border)" }}>
+                  <div style={{ fontSize: "9px", color: "var(--text-muted)" }}>Predicted Battery Fill</div>
                   <div style={{ fontSize: "16px", fontWeight: 700, color: predictedFillPct >= 95 ? "#34d399" : predictedFillPct >= 75 ? "#fbbf24" : "#fb923c" }}>{predictedFillPct}%</div>
                 </div>
-                <div style={{ background: "#0a0f1a", borderRadius: "6px", padding: "8px", textAlign: "center", border: "1px solid #1e293b" }}>
-                  <div style={{ fontSize: "9px", color: "#64748b" }}>Model Rating</div>
+                <div style={{ background: "var(--bg-page)", borderRadius: "6px", padding: "8px", textAlign: "center", border: "1px solid var(--border)" }}>
+                  <div style={{ fontSize: "9px", color: "var(--text-muted)" }}>Model Rating</div>
                   <div style={{ fontSize: "16px", fontWeight: 700, color: predictedPerformance === 'Excellent' ? "#34d399" : predictedPerformance === 'Good' ? "#fbbf24" : "#fb923c" }}>{predictedPerformance}</div>
                 </div>
-                <div style={{ background: "#0a0f1a", borderRadius: "6px", padding: "8px", textAlign: "center", border: "1px solid #1e293b" }}>
-                  <div style={{ fontSize: "9px", color: "#64748b" }}>Actual Yield</div>
+                <div style={{ background: "var(--bg-page)", borderRadius: "6px", padding: "8px", textAlign: "center", border: "1px solid var(--border)" }}>
+                  <div style={{ fontSize: "9px", color: "var(--text-muted)" }}>Actual Yield</div>
                   <div style={{ fontSize: "16px", fontWeight: 700, color: "#fb923c" }}>{actualYield.toFixed(1)} kWh</div>
                 </div>
               </div>
@@ -227,10 +230,10 @@ function LiveSolarTab({ solarLive, solarStats, solarDaily, setSolarDaily, solarM
               <div style={{ marginBottom: "10px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", marginBottom: "4px" }}>
                   <span style={{ color: "#fb923c" }}>Actual: {actualYield.toFixed(1)} kWh</span>
-                  <span style={{ color: "#94a3b8" }}>Predicted: {predictedByNow.toFixed(1)} kWh</span>
+                  <span style={{ color: "var(--text-secondary)" }}>Predicted: {predictedByNow.toFixed(1)} kWh</span>
                 </div>
-                <div style={{ position: "relative", background: "#1e293b", borderRadius: "8px", height: "20px", overflow: "hidden" }}>
-                  <div style={{ position: "absolute", left: `${Math.min((predictedByNow / Math.max(predictedFullDay, 0.1)) * 100, 100)}%`, top: 0, bottom: 0, width: "2px", background: "#94a3b8", zIndex: 2 }}></div>
+                <div style={{ position: "relative", background: "var(--border)", borderRadius: "8px", height: "20px", overflow: "hidden" }}>
+                  <div style={{ position: "absolute", left: `${Math.min((predictedByNow / Math.max(predictedFullDay, 0.1)) * 100, 100)}%`, top: 0, bottom: 0, width: "2px", background: "var(--text-secondary)", zIndex: 2 }}></div>
                   <div style={{
                     width: `${Math.min((actualYield / Math.max(predictedFullDay, 0.1)) * 100, 100)}%`,
                     height: "100%",
@@ -239,7 +242,7 @@ function LiveSolarTab({ solarLive, solarStats, solarDaily, setSolarDaily, solarM
                     transition: "width 1s ease"
                   }}></div>
                 </div>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "9px", color: "#475569", marginTop: "2px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "9px", color: "var(--text-dim)", marginTop: "2px" }}>
                   <span>0 kWh</span>
                   <span>Full day: {predictedFullDay} kWh</span>
                 </div>
@@ -247,7 +250,7 @@ function LiveSolarTab({ solarLive, solarStats, solarDaily, setSolarDaily, solarM
 
               {/* Model calibration note */}
               {modelNote && (
-                <div style={{ fontSize: "11px", color: "#94a3b8", padding: "8px 10px", background: "#0a0f1a", borderRadius: "6px", borderLeft: `3px solid ${ratingColor}` }}>
+                <div style={{ fontSize: "11px", color: "var(--text-secondary)", padding: "8px 10px", background: "var(--bg-page)", borderRadius: "6px", borderLeft: `3px solid ${ratingColor}` }}>
                   {modelNote}
                 </div>
               )}
@@ -345,23 +348,23 @@ function LiveSolarTab({ solarLive, solarStats, solarDaily, setSolarDaily, solarM
                       <stop offset="95%" stopColor="#38bdf8" stopOpacity={0.02} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                   <XAxis
                     dataKey="time"
-                    stroke="#475569"
+                    stroke="var(--text-dim)"
                     fontSize={10}
                     interval={Math.max(Math.floor(chartData.length / 12), 1)}
                   />
                   <YAxis
-                    stroke="#475569"
+                    stroke="var(--text-dim)"
                     fontSize={10}
                     domain={[0, yMax]}
                     tickFormatter={v => `${v.toLocaleString()}W`}
                     width={65}
                   />
                   <Tooltip
-                    contentStyle={{ background: "#0f172a", border: "1px solid #334155", borderRadius: "8px", fontSize: "12px", color: "#e2e8f0" }}
-                    labelStyle={{ color: "#94a3b8", fontWeight: 600 }}
+                    contentStyle={{ background: "var(--bg-input)", border: "1px solid var(--border-light)", borderRadius: "8px", fontSize: "12px", color: "var(--text)" }}
+                    labelStyle={{ color: "var(--text-secondary)", fontWeight: 600 }}
                     formatter={(value, name) => {
                       if (value === null || value === undefined) return ['-', name];
                       return [`${Number(value).toLocaleString()}W`, name];
@@ -381,9 +384,9 @@ function LiveSolarTab({ solarLive, solarStats, solarDaily, setSolarDaily, solarM
           {solarDaily.length > 0 && (
             <div style={S.card}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-                <div style={{ fontSize: "13px", fontWeight: 600, color: "#e2e8f0" }}>Daily Energy Overview</div>
+                <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--text)" }}>Daily Energy Overview</div>
                 <button onClick={() => setShowProviderImport(true)} style={{
-                  background: "#1e293b", color: "#94a3b8", border: "1px solid #334155", borderRadius: "6px",
+                  background: "var(--border)", color: "var(--text-secondary)", border: "1px solid var(--border-light)", borderRadius: "6px",
                   padding: "4px 10px", fontSize: "11px", cursor: "pointer", fontWeight: 500
                 }}>Import Provider Data</button>
               </div>
@@ -404,17 +407,17 @@ function LiveSolarTab({ solarLive, solarStats, solarDaily, setSolarDaily, solarM
                     importCost, feedinCredit, netCostDay,
                   };
                 })}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                  <XAxis dataKey="date" stroke="#475569" fontSize={10} />
-                  <YAxis stroke="#475569" fontSize={10} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                  <XAxis dataKey="date" stroke="var(--text-dim)" fontSize={10} />
+                  <YAxis stroke="var(--text-dim)" fontSize={10} />
                   <Tooltip
-                    contentStyle={{ background: "#0f172a", border: "1px solid #334155", borderRadius: "8px", fontSize: "12px", color: "#e2e8f0" }}
+                    contentStyle={{ background: "var(--bg-input)", border: "1px solid var(--border-light)", borderRadius: "8px", fontSize: "12px", color: "var(--text)" }}
                     content={({ active, payload, label }) => {
                       if (!active || !payload?.length) return null;
                       const d = payload[0]?.payload;
                       return (
-                        <div style={{ background: "#0f172a", border: "1px solid #334155", borderRadius: "8px", padding: "10px", fontSize: "12px", color: "#e2e8f0" }}>
-                          <div style={{ fontWeight: 600, color: "#94a3b8", marginBottom: "6px" }}>{d?.fullDate || label}</div>
+                        <div style={{ background: "var(--bg-input)", border: "1px solid var(--border-light)", borderRadius: "8px", padding: "10px", fontSize: "12px", color: "var(--text)" }}>
+                          <div style={{ fontWeight: 600, color: "var(--text-secondary)", marginBottom: "6px" }}>{d?.fullDate || label}</div>
                           {payload.filter(p => p.value > 0).map((p, i) => (
                             <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: "16px", marginBottom: "2px" }}>
                               <span style={{ color: p.color }}>{p.name}</span>
@@ -428,14 +431,14 @@ function LiveSolarTab({ solarLive, solarStats, solarDaily, setSolarDaily, solarM
                             </div>
                           )}
                           {d?.netCostDay != null && (
-                            <div style={{ borderTop: "1px solid #334155", marginTop: "6px", paddingTop: "6px" }}>
+                            <div style={{ borderTop: "1px solid var(--border-light)", marginTop: "6px", paddingTop: "6px" }}>
                               <div style={{ display: "flex", justifyContent: "space-between", gap: "16px", color: "#f87171" }}>
                                 <span>Import Cost</span><span>${d.importCost?.toFixed(2)}</span>
                               </div>
                               <div style={{ display: "flex", justifyContent: "space-between", gap: "16px", color: "#34d399" }}>
                                 <span>Feed-in Credit</span><span>-${d.feedinCredit?.toFixed(2)}</span>
                               </div>
-                              <div style={{ display: "flex", justifyContent: "space-between", gap: "16px", color: "#64748b", fontSize: "10px" }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", gap: "16px", color: "var(--text-muted)", fontSize: "10px" }}>
                                 <span>Supply</span><span>${blendedRates.supplyDaily.toFixed(2)}</span>
                               </div>
                               <div style={{ display: "flex", justifyContent: "space-between", gap: "16px", fontWeight: 700, color: d.netCostDay >= 0 ? "#f87171" : "#34d399", marginTop: "4px" }}>
@@ -467,12 +470,12 @@ function LiveSolarTab({ solarLive, solarStats, solarDaily, setSolarDaily, solarM
                     {[
                       { label: `Import Cost (${withCosts.length}d)`, value: `$${totalImport.toFixed(2)}`, color: "#f87171" },
                       { label: "Feed-in Credit", value: `-$${totalFeedin.toFixed(2)}`, color: "#34d399" },
-                      { label: `Supply (${withCosts.length}d)`, value: `$${totalSupply.toFixed(2)}`, color: "#94a3b8" },
+                      { label: `Supply (${withCosts.length}d)`, value: `$${totalSupply.toFixed(2)}`, color: "var(--text-secondary)" },
                       { label: "Net Cost", value: `$${totalNet.toFixed(2)}`, color: totalNet >= 0 ? "#f87171" : "#34d399" },
                       { label: "Avg Daily", value: `$${avgDaily.toFixed(2)}/day`, color: "#fbbf24" },
                     ].map((s, i) => (
-                      <div key={i} style={{ flex: "1 1 100px", background: "#1e293b", borderRadius: "6px", padding: "8px", textAlign: "center" }}>
-                        <div style={{ color: "#64748b", fontSize: "10px" }}>{s.label}</div>
+                      <div key={i} style={{ flex: "1 1 100px", background: "var(--border)", borderRadius: "6px", padding: "8px", textAlign: "center" }}>
+                        <div style={{ color: "var(--text-muted)", fontSize: "10px" }}>{s.label}</div>
                         <div style={{ color: s.color, fontWeight: 700 }}>{s.value}</div>
                       </div>
                     ))}
@@ -486,17 +489,17 @@ function LiveSolarTab({ solarLive, solarStats, solarDaily, setSolarDaily, solarM
           {showProviderImport && (
             <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center" }}
               onClick={e => { if (e.target === e.currentTarget) setShowProviderImport(false); }}>
-              <div style={{ background: "#0f172a", border: "1px solid #334155", borderRadius: "12px", padding: "24px", width: "min(560px, 90vw)", maxHeight: "80vh", overflow: "auto" }}>
+              <div style={{ background: "var(--bg-input)", border: "1px solid var(--border-light)", borderRadius: "12px", padding: "24px", width: "min(560px, 90vw)", maxHeight: "80vh", overflow: "auto" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-                  <div style={{ fontSize: "16px", fontWeight: 700, color: "#e2e8f0" }}>Import Provider Data</div>
-                  <button onClick={() => setShowProviderImport(false)} style={{ background: "none", border: "none", color: "#64748b", fontSize: "20px", cursor: "pointer" }}>x</button>
+                  <div style={{ fontSize: "16px", fontWeight: 700, color: "var(--text)" }}>Import Provider Data</div>
+                  <button onClick={() => setShowProviderImport(false)} style={{ background: "none", border: "none", color: "var(--text-muted)", fontSize: "20px", cursor: "pointer" }}>x</button>
                 </div>
-                <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "12px" }}>
+                <div style={{ fontSize: "12px", color: "var(--text-muted)", marginBottom: "12px" }}>
                   Paste your energy provider data below. One day per line.<br/>
-                  Format: <span style={{ color: "#94a3b8", fontFamily: "monospace" }}>date consumed feedin</span> (separated by spaces, tabs, or commas)<br/>
-                  Date formats: <span style={{ color: "#94a3b8", fontFamily: "monospace" }}>2026-02-01</span> or <span style={{ color: "#94a3b8", fontFamily: "monospace" }}>1/2/2026</span> or <span style={{ color: "#94a3b8", fontFamily: "monospace" }}>1st Feb</span> etc.
+                  Format: <span style={{ color: "var(--text-secondary)", fontFamily: "monospace" }}>date consumed feedin</span> (separated by spaces, tabs, or commas)<br/>
+                  Date formats: <span style={{ color: "var(--text-secondary)", fontFamily: "monospace" }}>2026-02-01</span> or <span style={{ color: "var(--text-secondary)", fontFamily: "monospace" }}>1/2/2026</span> or <span style={{ color: "var(--text-secondary)", fontFamily: "monospace" }}>1st Feb</span> etc.
                 </div>
-                <div style={{ fontSize: "11px", color: "#475569", marginBottom: "12px", background: "#1e293b", borderRadius: "6px", padding: "8px", fontFamily: "monospace" }}>
+                <div style={{ fontSize: "11px", color: "var(--text-dim)", marginBottom: "12px", background: "var(--border)", borderRadius: "6px", padding: "8px", fontFamily: "monospace" }}>
                   Example:<br/>
                   2026-02-01 27.918 23.05<br/>
                   2026-02-02 34.032 17.719<br/>
@@ -507,7 +510,7 @@ function LiveSolarTab({ solarLive, solarStats, solarDaily, setSolarDaily, solarM
                   onChange={e => setProviderImportText(e.target.value)}
                   placeholder="Paste provider data here..."
                   style={{
-                    width: "100%", height: "200px", background: "#1e293b", color: "#e2e8f0", border: "1px solid #334155",
+                    width: "100%", height: "200px", background: "var(--border)", color: "var(--text)", border: "1px solid var(--border-light)",
                     borderRadius: "8px", padding: "12px", fontSize: "12px", fontFamily: "monospace", resize: "vertical",
                     boxSizing: "border-box"
                   }}
@@ -519,7 +522,7 @@ function LiveSolarTab({ solarLive, solarStats, solarDaily, setSolarDaily, solarM
                 )}
                 <div style={{ display: "flex", gap: "8px", marginTop: "12px", justifyContent: "flex-end" }}>
                   <button onClick={() => { setShowProviderImport(false); setProviderImportStatus(null); }} style={{
-                    background: "#1e293b", color: "#94a3b8", border: "1px solid #334155", borderRadius: "6px",
+                    background: "var(--border)", color: "var(--text-secondary)", border: "1px solid var(--border-light)", borderRadius: "6px",
                     padding: "8px 16px", fontSize: "12px", cursor: "pointer"
                   }}>Cancel</button>
                   <button onClick={async () => {
@@ -672,8 +675,8 @@ function LiveSolarTab({ solarLive, solarStats, solarDaily, setSolarDaily, solarM
 
             return (
               <div style={S.card}>
-                <div style={{ fontSize: "13px", fontWeight: 600, color: "#e2e8f0", marginBottom: "4px" }}>Battery Savings Simulation</div>
-                <div style={{ fontSize: "11px", color: "#475569", marginBottom: "12px" }}>
+                <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--text)", marginBottom: "4px" }}>Battery Savings Simulation</div>
+                <div style={{ fontSize: "11px", color: "var(--text-dim)", marginBottom: "12px" }}>
                   Simulated impact of {cfg.batteryModel || 'battery'} ({bCap} kWh usable, {(bEff * 100).toFixed(1)}% eff.) on your actual energy costs
                 </div>
 
@@ -688,29 +691,29 @@ function LiveSolarTab({ solarLive, solarStats, solarDaily, setSolarDaily, solarM
                 {/* Grouped Bar Chart: Without vs With Battery */}
                 <ResponsiveContainer width="100%" height={280}>
                   <BarChart data={simData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                    <XAxis dataKey="date" stroke="#475569" fontSize={10} />
-                    <YAxis stroke="#475569" fontSize={10} tickFormatter={v => `$${v}`} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                    <XAxis dataKey="date" stroke="var(--text-dim)" fontSize={10} />
+                    <YAxis stroke="var(--text-dim)" fontSize={10} tickFormatter={v => `$${v}`} />
                     <Tooltip
                       content={({ active, payload, label }) => {
                         if (!active || !payload?.length) return null;
                         const d = payload[0]?.payload;
                         return (
-                          <div style={{ background: "#0f172a", border: "1px solid #334155", borderRadius: "8px", padding: "10px", fontSize: "12px", color: "#e2e8f0" }}>
-                            <div style={{ fontWeight: 600, color: "#94a3b8", marginBottom: "6px" }}>{d?.fullDate || label}</div>
+                          <div style={{ background: "var(--bg-input)", border: "1px solid var(--border-light)", borderRadius: "8px", padding: "10px", fontSize: "12px", color: "var(--text)" }}>
+                            <div style={{ fontWeight: 600, color: "var(--text-secondary)", marginBottom: "6px" }}>{d?.fullDate || label}</div>
                             <div style={{ display: "flex", justifyContent: "space-between", gap: "16px", marginBottom: "2px" }}>
                               <span style={{ color: "#f87171" }}>Without Battery</span><span>${d?.costWithout?.toFixed(2)}</span>
                             </div>
                             <div style={{ display: "flex", justifyContent: "space-between", gap: "16px", marginBottom: "2px" }}>
                               <span style={{ color: "#38bdf8" }}>With Battery</span><span>${d?.costWith?.toFixed(2)}</span>
                             </div>
-                            <div style={{ borderTop: "1px solid #334155", marginTop: "4px", paddingTop: "4px", display: "flex", justifyContent: "space-between", gap: "16px", fontWeight: 700, color: "#34d399" }}>
+                            <div style={{ borderTop: "1px solid var(--border-light)", marginTop: "4px", paddingTop: "4px", display: "flex", justifyContent: "space-between", gap: "16px", fontWeight: 700, color: "#34d399" }}>
                               <span>Daily Savings</span><span>${d?.savings?.toFixed(2)}</span>
                             </div>
-                            <div style={{ fontSize: "10px", color: "#475569", marginTop: "6px" }}>
+                            <div style={{ fontSize: "10px", color: "var(--text-dim)", marginTop: "6px" }}>
                               Battery: stored {d?.batteryCharge} kWh, discharged {d?.batteryDischarge} kWh
                             </div>
-                            <div style={{ fontSize: "10px", color: "#475569" }}>
+                            <div style={{ fontSize: "10px", color: "var(--text-dim)" }}>
                               Grid: {d?.consumed?.toFixed(1)} → {d?.newGridImport} kWh | Export: {d?.feedin?.toFixed(1)} → {d?.newFeedin} kWh
                             </div>
                           </div>
@@ -723,7 +726,7 @@ function LiveSolarTab({ solarLive, solarStats, solarDaily, setSolarDaily, solarM
                   </BarChart>
                 </ResponsiveContainer>
 
-                <div style={{ fontSize: "10px", color: "#475569", marginTop: "6px", textAlign: "center" }}>
+                <div style={{ fontSize: "10px", color: "var(--text-dim)", marginTop: "6px", textAlign: "center" }}>
                   Blended import rate: ${blendedRates.blendedImport.toFixed(4)}/kWh (40% peak + 45% off-peak + 15% CL, incl. {rateSets[rateSets.length-1].disc}% discount + GST) | Feed-in: ${blendedRates.feedInRate.toFixed(3)}/kWh
                 </div>
               </div>
@@ -733,25 +736,25 @@ function LiveSolarTab({ solarLive, solarStats, solarDaily, setSolarDaily, solarM
           {/* Monthly Summary */}
           {solarMonthly.length > 0 && (
             <div style={S.card}>
-              <div style={{ fontSize: "13px", fontWeight: 600, color: "#e2e8f0", marginBottom: "8px" }}>Monthly Summary</div>
+              <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--text)", marginBottom: "8px" }}>Monthly Summary</div>
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
                   <thead>
-                    <tr style={{ borderBottom: "1px solid #334155" }}>
+                    <tr style={{ borderBottom: "1px solid var(--border-light)" }}>
                       {["Month", "Total kWh", "Avg Daily", "Best Day", "Peak Day", "Days", "Avg Peak W"].map(h => (
-                        <th key={h} style={{ padding: "8px 6px", color: "#94a3b8", fontWeight: 600, textAlign: "left" }}>{h}</th>
+                        <th key={h} style={{ padding: "8px 6px", color: "var(--text-secondary)", fontWeight: 600, textAlign: "left" }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {solarMonthly.map((m, i) => (
-                      <tr key={i} style={{ borderBottom: "1px solid #1e293b" }}>
-                        <td style={{ padding: "6px", color: "#e2e8f0", fontWeight: 500 }}>{m.month}</td>
+                      <tr key={i} style={{ borderBottom: "1px solid var(--border)" }}>
+                        <td style={{ padding: "6px", color: "var(--text)", fontWeight: 500 }}>{m.month}</td>
                         <td style={{ padding: "6px", color: "#38bdf8" }}>{(m.total_yield_kwh || 0).toFixed(1)}</td>
                         <td style={{ padding: "6px", color: "#34d399" }}>{(m.avg_daily_kwh || 0).toFixed(1)}</td>
                         <td style={{ padding: "6px", color: "#fbbf24" }}>{(m.peak_day_kwh || 0).toFixed(1)}</td>
-                        <td style={{ padding: "6px", color: "#94a3b8" }}>{m.peak_day_date || '-'}</td>
-                        <td style={{ padding: "6px", color: "#94a3b8" }}>{m.days_with_data || 0}</td>
+                        <td style={{ padding: "6px", color: "var(--text-secondary)" }}>{m.peak_day_date || '-'}</td>
+                        <td style={{ padding: "6px", color: "var(--text-secondary)" }}>{m.days_with_data || 0}</td>
                         <td style={{ padding: "6px", color: "#fb923c" }}>{(m.avg_peak_power_w || 0).toFixed(0)}</td>
                       </tr>
                     ))}
@@ -764,7 +767,7 @@ function LiveSolarTab({ solarLive, solarStats, solarDaily, setSolarDaily, solarM
           {/* System Info */}
           {solarStats && (
             <div style={S.card}>
-              <div style={{ fontSize: "13px", fontWeight: 600, color: "#e2e8f0", marginBottom: "8px" }}>System Information</div>
+              <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--text)", marginBottom: "8px" }}>System Information</div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "8px", fontSize: "12px" }}>
                 {[
                   { label: "Inverter Model", value: solarLive?.type || "Solax AL_SI4" },
@@ -776,9 +779,9 @@ function LiveSolarTab({ solarLive, solarStats, solarDaily, setSolarDaily, solarM
                   { label: "Lifetime Yield", value: `${(solarLive?.total_yield || 0).toLocaleString(undefined, {minimumFractionDigits: 1, maximumFractionDigits: 1})} kWh` },
                   { label: "Last Update", value: solarLive?.timestamp || "N/A" },
                 ].map((info, i) => (
-                  <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid #1e293b" }}>
-                    <span style={{ color: "#64748b" }}>{info.label}</span>
-                    <span style={{ color: "#e2e8f0", fontWeight: 500 }}>{info.value}</span>
+                  <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid var(--border)" }}>
+                    <span style={{ color: "var(--text-muted)" }}>{info.label}</span>
+                    <span style={{ color: "var(--text)", fontWeight: 500 }}>{info.value}</span>
                   </div>
                 ))}
               </div>

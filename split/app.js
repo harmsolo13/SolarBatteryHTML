@@ -8,6 +8,14 @@ function BatteryROI() {
   const [tab, setTab] = useState(0);
   const [viewYr, setViewYr] = useState(1);
   const [chartMode, setChartMode] = useState("total");
+  const [darkMode, setDarkMode] = useState(() => {
+    const saved_theme = localStorage.getItem('batteryROI_theme');
+    return saved_theme ? saved_theme === 'dark' : true;
+  });
+  useEffect(() => {
+    document.documentElement.dataset.theme = darkMode ? 'dark' : 'light';
+    localStorage.setItem('batteryROI_theme', darkMode ? 'dark' : 'light');
+  }, [darkMode]);
 
   const [rateSets, setRateSets] = useState(
     saved?.rateSets || [makeRateSet("2025-01-01", "Rate period 1", {})]
@@ -242,29 +250,41 @@ function BatteryROI() {
     }
   }, [tab]);
 
+  /* Shared refresh function for Open-Meteo forecast (used by Forecast tab, Live Solar tab, and auto-refresh) */
+  const refreshOpenMeteo = useCallback(async (force = true) => {
+    setOpenMeteoLoading(true);
+    setOpenMeteoError(null);
+    try {
+      const url = force ? `${SOLAR_API_URL}/weather-forecast?force=true` : `${SOLAR_API_URL}/weather-forecast`;
+      const resp = await fetch(url);
+      if (resp.ok) {
+        const data = await resp.json();
+        const processed = processOpenMeteoForecast(data.forecast_days || [], cfg);
+        setOpenMeteoForecast(processed);
+      } else {
+        setOpenMeteoError('Failed to fetch forecast');
+      }
+    } catch (e) {
+      setOpenMeteoError(e.message);
+    } finally {
+      setOpenMeteoLoading(false);
+    }
+  }, [cfg]);
+
   /* Auto-fetch Open-Meteo 16-day forecast when Forecast or Live Solar tab is accessed */
   useEffect(() => {
     if ((tab === 3 || tab === 4) && !openMeteoForecast && !openMeteoLoading) {
-      setOpenMeteoLoading(true);
-      setOpenMeteoError(null);
-      (async () => {
-        try {
-          const resp = await fetch(`${SOLAR_API_URL}/weather-forecast`);
-          if (resp.ok) {
-            const data = await resp.json();
-            const processed = processOpenMeteoForecast(data.forecast_days || [], cfg);
-            setOpenMeteoForecast(processed);
-          } else {
-            setOpenMeteoError('Failed to fetch Open-Meteo forecast');
-          }
-        } catch (e) {
-          setOpenMeteoError(e.message);
-        } finally {
-          setOpenMeteoLoading(false);
-        }
-      })();
+      refreshOpenMeteo(false);
     }
   }, [tab]);
+
+  /* Auto-refresh weather forecast every 3 hours while page is open */
+  useEffect(() => {
+    const interval = setInterval(() => {
+      refreshOpenMeteo(false);
+    }, 3 * 60 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [refreshOpenMeteo]);
 
   /* Fetch SA Grid data when Grid tab is accessed */
   const fetchGridData = useCallback(async () => {
@@ -699,19 +719,20 @@ function BatteryROI() {
             <p style={S.sub}>{cfg.installerName} {cfg.batteryModel} {cfg.batteryCapacity}kWh · {cfg.location} TOU Tariff · {cfg.provider}</p>
           </div>
           <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
-            <div style={{ display: "flex", gap: "4px", background: "#0f172a", padding: "3px", borderRadius: "7px", border: "1px solid #334155" }}>
+            <div style={{ display: "flex", gap: "4px", background: "var(--bg-input)", padding: "3px", borderRadius: "7px", border: "1px solid var(--border-light)" }}>
               <button style={{ ...S.tgl(roiMode === 'hypothetical'), fontSize: "10px", padding: "4px 8px" }} onClick={() => setRoiMode('hypothetical')}>Hypothetical</button>
               <button style={{ ...S.tgl(roiMode === 'actual'), fontSize: "10px", padding: "4px 8px" }} onClick={() => setRoiMode('actual')}>Actual</button>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-              <label style={{ fontSize: "10px", color: "#94a3b8", fontWeight: 600 }}>Install Date</label>
+              <label style={{ fontSize: "10px", color: "var(--text-secondary)", fontWeight: 600 }}>Install Date</label>
               <input type="date" value={purchaseDate} onChange={(e) => setPurchaseDate(e.target.value)}
-                style={{ padding: "4px 8px", border: "1px solid #334155", borderRadius: "6px", background: "#0f172a", color: "#e2e8f0", fontSize: "11px" }} />
+                style={{ padding: "4px 8px", border: "1px solid var(--border-light)", borderRadius: "6px", background: "var(--bg-input)", color: "var(--text)", fontSize: "11px" }} />
             </div>
             <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
               {entries.length > 0 && <span style={{ fontSize: "10px", color: "#34d399", marginRight: "2px" }}>● Saved</span>}
-              <button onClick={exportData} style={{ padding: "4px 8px", border: "1px solid #334155", borderRadius: "5px", cursor: "pointer", fontSize: "10px", color: "#94a3b8", background: "transparent" }} title="Download all data as JSON">📥</button>
-              <button onClick={importData} style={{ padding: "4px 8px", border: "1px solid #334155", borderRadius: "5px", cursor: "pointer", fontSize: "10px", color: "#94a3b8", background: "transparent" }} title="Load data from JSON file">📤</button>
+              <button onClick={exportData} style={{ padding: "4px 8px", border: "1px solid var(--border-light)", borderRadius: "5px", cursor: "pointer", fontSize: "10px", color: "var(--text-secondary)", background: "transparent" }} title="Download all data as JSON">📥</button>
+              <button onClick={importData} style={{ padding: "4px 8px", border: "1px solid var(--border-light)", borderRadius: "5px", cursor: "pointer", fontSize: "10px", color: "var(--text-secondary)", background: "transparent" }} title="Load data from JSON file">📤</button>
+              <button onClick={() => setDarkMode(!darkMode)} style={{ padding: "4px 8px", border: "1px solid var(--border-light)", borderRadius: "5px", cursor: "pointer", fontSize: "10px", color: "var(--text-secondary)", background: "transparent" }} title="Toggle light/dark mode">{darkMode ? '☀️' : '🌙'}</button>
             </div>
           </div>
         </div>
@@ -719,31 +740,31 @@ function BatteryROI() {
 
       {/* ═══ LIVE SOLAR STATUS BAR ═══ */}
       {solarConnected && solarLive && (
-        <div style={{ background: "linear-gradient(135deg, #0f172a 0%, #1a2332 100%)", border: "1px solid #1e3a5f", borderRadius: "10px", padding: "10px 16px", margin: "0 0 8px 0", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px", cursor: "pointer" }} onClick={() => setTab(4)}>
+        <div style={{ background: "linear-gradient(135deg, var(--bg-input) 0%, #1a2332 100%)", border: "1px solid var(--border-accent)", borderRadius: "10px", padding: "10px 16px", margin: "0 0 8px 0", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px", cursor: "pointer" }} onClick={() => setTab(4)}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <span style={{ fontSize: "18px" }}>{solarLive.total_pv_power > 100 ? "☀️" : "🌙"}</span>
             <div>
-              <div style={{ fontSize: "13px", fontWeight: 700, color: solarLive.total_pv_power > 100 ? "#fbbf24" : "#64748b" }}>
+              <div style={{ fontSize: "13px", fontWeight: 700, color: solarLive.total_pv_power > 100 ? "#fbbf24" : "var(--text-muted)" }}>
                 {typeof solarLive.total_pv_power === 'number' ? solarLive.total_pv_power.toLocaleString() : '0'}W
               </div>
-              <div style={{ fontSize: "10px", color: "#64748b" }}>PV Power</div>
+              <div style={{ fontSize: "10px", color: "var(--text-muted)" }}>PV Power</div>
             </div>
           </div>
           <div style={{ textAlign: "center" }}>
             <div style={{ fontSize: "13px", fontWeight: 600, color: "#38bdf8" }}>{solarLive.today_yield?.toFixed(1) || '0.0'} kWh</div>
-            <div style={{ fontSize: "10px", color: "#64748b" }}>Today</div>
+            <div style={{ fontSize: "10px", color: "var(--text-muted)" }}>Today</div>
           </div>
           <div style={{ textAlign: "center" }}>
             <div style={{ fontSize: "13px", fontWeight: 600, color: "#a78bfa" }}>{solarLive.grid_power?.toLocaleString() || '0'}W</div>
-            <div style={{ fontSize: "10px", color: "#64748b" }}>Grid</div>
+            <div style={{ fontSize: "10px", color: "var(--text-muted)" }}>Grid</div>
           </div>
           <div style={{ textAlign: "center" }}>
             <div style={{ fontSize: "13px", fontWeight: 600, color: "#34d399" }}>{solarLive.exported_power?.toLocaleString() || '0'}W</div>
-            <div style={{ fontSize: "10px", color: "#64748b" }}>Export</div>
+            <div style={{ fontSize: "10px", color: "var(--text-muted)" }}>Export</div>
           </div>
           <div style={{ textAlign: "center" }}>
             <div style={{ fontSize: "13px", fontWeight: 600, color: "#fb923c" }}>{solarLive.inverter_temp || '0'}°C</div>
-            <div style={{ fontSize: "10px", color: "#64748b" }}>Temp</div>
+            <div style={{ fontSize: "10px", color: "var(--text-muted)" }}>Temp</div>
           </div>
           {gridData?.current?.price_mwh != null && (() => {
             const ckwh = gridData.current.price_mwh / 10;
@@ -754,7 +775,7 @@ function BatteryROI() {
                 <div style={{ fontSize: "13px", fontWeight: 600, color: ckwh < 5 ? "#34d399" : ckwh < 15 ? "#fbbf24" : "#f87171" }}>
                   {ckwh.toFixed(1)}¢
                 </div>
-                <div style={{ fontSize: "10px", color: "#64748b" }}>Spot</div>
+                <div style={{ fontSize: "10px", color: "var(--text-muted)" }}>Spot</div>
               </div>
             );
           })()}
@@ -767,7 +788,7 @@ function BatteryROI() {
                 <div style={{ fontSize: "13px", fontWeight: 600, color: "#fbbf24" }}>
                   ${valuePerHr.toFixed(2)}/hr
                 </div>
-                <div style={{ fontSize: "10px", color: "#64748b" }}>Spot Value</div>
+                <div style={{ fontSize: "10px", color: "var(--text-muted)" }}>Spot Value</div>
               </div>
             );
           })()}
@@ -841,7 +862,7 @@ function BatteryROI() {
           accelerateRepay={accelerateRepay} setAccelerateRepay={setAccelerateRepay}
           annualBill={annualBill}
           openMeteoForecast={openMeteoForecast} openMeteoLoading={openMeteoLoading} openMeteoError={openMeteoError}
-          setOpenMeteoForecast={setOpenMeteoForecast} setOpenMeteoLoading={setOpenMeteoLoading} setOpenMeteoError={setOpenMeteoError}
+          refreshOpenMeteo={refreshOpenMeteo}
           forecastSubView={forecastSubView} setForecastSubView={setForecastSubView}
         />}
 
@@ -850,7 +871,7 @@ function BatteryROI() {
           solarLive={solarLive} solarStats={solarStats} solarDaily={solarDaily} setSolarDaily={setSolarDaily}
           solarMonthly={solarMonthly} solarHourly={solarHourly} solarToday={solarToday}
           solarConnected={solarConnected} weatherToday={weatherToday}
-          forecastData={forecastData} openMeteoForecast={openMeteoForecast}
+          forecastData={forecastData} openMeteoForecast={openMeteoForecast} refreshOpenMeteo={refreshOpenMeteo} openMeteoLoading={openMeteoLoading}
           cfg={cfg} blendedRates={blendedRates} rateSets={rateSets} netCost={netCost}
           showProviderImport={showProviderImport} setShowProviderImport={setShowProviderImport}
           providerImportText={providerImportText} setProviderImportText={setProviderImportText}
